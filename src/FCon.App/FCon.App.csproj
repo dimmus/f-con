@@ -1,0 +1,92 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>FCon</AssemblyName>
+    <RootNamespace>FCon.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\fcon.ico</ApplicationIcon>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <Version>1.0.0</Version>
+    <Product>FCon</Product>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!--
+      WFO0003 tells WinForms apps to configure DPI through Application.SetHighDpiMode.
+      This is a WPF app that only borrows WinForms for the tray icon, and WPF reads its
+      per-monitor DPI awareness from the manifest, so the manifest entry has to stay.
+    -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    Publish settings. WPF does not support trimming, so the self-contained build stays
+    untrimmed; compression keeps the single file to a reasonable size instead.
+  -->
+  <PropertyGroup>
+    <!--
+      RuntimeIdentifier is deliberately NOT set here: it would pull a runtime-pack
+      restore into every ordinary dev build. build/publish.ps1 passes -r instead.
+    -->
+    <!--
+      Note: with a RuntimeIdentifier this forces a self-contained publish, and neither
+      the CLI switch nor PublishSelfContained overrides it. build/publish.ps1 therefore
+      turns it off for the framework-dependent package instead of asking for a
+      combination the SDK does not honour.
+    -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <!-- Compression is only legal when the runtime travels with the app. -->
+    <EnableCompressionInSingleFile Condition="'$(SelfContained)' == 'true'">true</EnableCompressionInSingleFile>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <PublishTrimmed>false</PublishTrimmed>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      WinForms is referenced only for the tray icon, but enabling it swaps System.IO and
+      System.Net.Http out of the implicit usings for System.Drawing and System.Windows.Forms.
+      Put the two back, and let WPF win every name the two UI stacks share.
+    -->
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" />
+    <Using Include="System.Windows.Application" Alias="Application" />
+    <Using Include="System.Windows.MessageBox" Alias="MessageBox" />
+    <Using Include="System.Windows.Clipboard" Alias="Clipboard" />
+    <Using Include="System.Windows.Data.Binding" Alias="Binding" />
+    <Using Include="System.Windows.Media.Brush" Alias="Brush" />
+    <Using Include="System.Windows.Media.Brushes" Alias="Brushes" />
+    <Using Include="FCon.Core.Health.LinkState" Alias="LinkState" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Also a Resource so windows can reference it by pack URI, not just the exe. -->
+    <Resource Include="Assets\fcon.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FCon.Core\FCon.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    The app looks for cores in "engines" beside the executable. Mirror the repo-root
+    engines/ folder into the output so there is one obvious place to drop a binary,
+    rather than one folder to read about and a different one that is actually read.
+  -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\..\engines\**\*"
+          Exclude="$(MSBuildThisFileDirectory)..\..\engines\**\*.md"
+          Link="engines\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+  </ItemGroup>
+</Project>

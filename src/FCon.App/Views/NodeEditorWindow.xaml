@@ -1,0 +1,186 @@
+<Window x:Class="FCon.App.Views.NodeEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="clr-namespace:FCon.App.Views"
+        Title="Server" Height="720" Width="700" MinHeight="520" MinWidth="560"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{DynamicResource Surface.Window}"
+        Icon="pack://application:,,,/Assets/fcon.ico">
+
+    <Window.Resources>
+        <v:BoolToVisibilityConverter x:Key="BoolVis" />
+        <v:StringToVisibilityConverter x:Key="StrVis" />
+        <v:EnumLabelConverter x:Key="EnumLabel" />
+
+        <DataTemplate x:Key="EnumItemTemplate">
+            <TextBlock Text="{Binding Converter={StaticResource EnumLabel}}" />
+        </DataTemplate>
+
+        <!--
+            One template renders every field in the app. Plugin=declared fields and the
+            built=in transport/TLS fields go through exactly the same path.
+        -->
+        <DataTemplate x:Key="FieldTemplate">
+            <StackPanel Margin="0,0,0,12"
+                        Visibility="{Binding IsVisible, Converter={StaticResource BoolVis}}">
+                <TextBlock Text="{Binding Label}" Style="{StaticResource Caption}" Margin="0,0,0,4" />
+
+                <!-- text / number -->
+                <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged, Delay=120}"
+                         Visibility="{Binding IsText, Converter={StaticResource BoolVis}}" />
+
+                <!-- secret -->
+                <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged, Delay=120}"
+                         FontFamily="{StaticResource MonoFont}"
+                         Visibility="{Binding IsSecret, Converter={StaticResource BoolVis}}" />
+
+                <!-- uuid, with a generator -->
+                <Grid Visibility="{Binding IsUuid, Converter={StaticResource BoolVis}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged, Delay=120}"
+                             FontFamily="{StaticResource MonoFont}" />
+                    <Button Grid.Column="1" Content="Generate" Margin="8,0,0,0"
+                            Command="{Binding DataContext.GenerateUuidCommand,
+                                      RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="{Binding}" />
+                </Grid>
+
+                <!-- multiline -->
+                <TextBox Text="{Binding Value, UpdateSourceTrigger=LostFocus}"
+                         Height="90" AcceptsReturn="True" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"
+                         FontFamily="{StaticResource MonoFont}"
+                         Visibility="{Binding IsMultiline, Converter={StaticResource BoolVis}}" />
+
+                <!-- choice -->
+                <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding SelectedChoice}"
+                          DisplayMemberPath="Label"
+                          Visibility="{Binding IsChoice, Converter={StaticResource BoolVis}}" />
+
+                <!-- toggle -->
+                <CheckBox IsChecked="{Binding BoolValue}" Content="{Binding Label}"
+                          Visibility="{Binding IsToggle, Converter={StaticResource BoolVis}}" />
+
+                <TextBlock Text="{Binding Help}" Style="{StaticResource Caption}" Margin="0,4,0,0"
+                           TextWrapping="Wrap"
+                           Visibility="{Binding Help, Converter={StaticResource StrVis}}" />
+            </StackPanel>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="0,0,0,14">
+            <Button DockPanel.Dock="Right" Content="Paste link" Click="PasteLink_Click"
+                    ToolTip="Fill this form from a share link on the clipboard" />
+            <TextBlock Text="{Binding Title}" Style="{StaticResource Heading}" VerticalAlignment="Center" />
+        </DockPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,12,0">
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Remark" Style="{StaticResource Caption}" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding Remark, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,12" />
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="110" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Address" Style="{StaticResource Caption}" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding Server, UpdateSourceTrigger=PropertyChanged, Delay=120}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                                <TextBlock Text="Port" Style="{StaticResource Caption}" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding Port, UpdateSourceTrigger=PropertyChanged, Delay=120}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="Protocol" Style="{StaticResource Caption}" Margin="0,0,0,4" />
+                        <ComboBox ItemsSource="{Binding Protocols}" SelectedItem="{Binding Protocol}"
+                                  DisplayMemberPath="DisplayName" Margin="0,0,0,12" />
+
+                        <TextBlock Text="Group" Style="{StaticResource Caption}" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding Group, UpdateSourceTrigger=LostFocus}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="PROTOCOL" Style="{StaticResource SectionLabel}" Margin="0,0,0,10" />
+                        <ItemsControl ItemsSource="{Binding ProtocolFields}"
+                                      ItemTemplate="{StaticResource FieldTemplate}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,10"
+                        Visibility="{Binding ShowTransport, Converter={StaticResource BoolVis}}">
+                    <StackPanel>
+                        <TextBlock Text="TRANSPORT" Style="{StaticResource SectionLabel}" Margin="0,0,0,10" />
+                        <ComboBox ItemsSource="{Binding AvailableTransports}" SelectedItem="{Binding Transport}"
+                                  ItemTemplate="{StaticResource EnumItemTemplate}" Margin="0,0,0,12" />
+                        <ItemsControl ItemsSource="{Binding TransportFields}"
+                                      ItemTemplate="{StaticResource FieldTemplate}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,10"
+                        Visibility="{Binding ShowSecurity, Converter={StaticResource BoolVis}}">
+                    <StackPanel>
+                        <TextBlock Text="SECURITY" Style="{StaticResource SectionLabel}" Margin="0,0,0,10" />
+                        <ComboBox ItemsSource="{Binding AvailableSecurity}" SelectedItem="{Binding Security}"
+                                  ItemTemplate="{StaticResource EnumItemTemplate}" Margin="0,0,0,12" />
+                        <ItemsControl ItemsSource="{Binding SecurityFields}"
+                                      ItemTemplate="{StaticResource FieldTemplate}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,0,0,10"
+                        Visibility="{Binding ShowMux, Converter={StaticResource BoolVis}}">
+                    <StackPanel>
+                        <TextBlock Text="MULTIPLEXING" Style="{StaticResource SectionLabel}" Margin="0,0,0,10" />
+                        <ItemsControl ItemsSource="{Binding MuxFields}"
+                                      ItemTemplate="{StaticResource FieldTemplate}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="2" Margin="0,12,0,0" CornerRadius="6" Padding="12,9"
+                Background="{DynamicResource Surface.Raised}">
+            <TextBlock Text="{Binding ValidationText}" TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasValidationErrors}" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource Status.Bad}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding HasValidationErrors}" Value="False">
+                                <Setter Property="Foreground" Value="{DynamicResource Status.Good}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </Border>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Content="Copy link" Width="100" Margin="0,0,8,0" Click="CopyLink_Click" />
+            <Button Content="Cancel" Width="94" Margin="0,0,8,0" IsCancel="True" Click="Cancel_Click" />
+            <Button Content="Save" Width="94" IsDefault="True" Style="{StaticResource AccentButton}"
+                    Click="Save_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

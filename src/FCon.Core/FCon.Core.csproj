@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FCon.Abstractions\FCon.Abstractions.csproj" />
+    <ProjectReference Include="..\FCon.Plugins.Builtin\FCon.Plugins.Builtin.csproj" />
+  </ItemGroup>
+</Project>

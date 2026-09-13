@@ -1,0 +1,12 @@
+bin/
+obj/
+dist/
+
+# Proxy cores are fetched from upstream under their own licences and are not ours to
+# redistribute. The folder layout and its README are tracked; the binaries are not.
+engines/**
+!engines/README.md
+!engines/.gitkeep
+
+.vs/
+*.user

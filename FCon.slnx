@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="src/FCon.Abstractions/FCon.Abstractions.csproj" />
+  <Project Path="src/FCon.Core/FCon.Core.csproj" />
+  <Project Path="src/FCon.Plugins.Builtin/FCon.Plugins.Builtin.csproj" />
+  <Project Path="src/FCon.App/FCon.App.csproj" />
+  <Project Path="tools/FCon.Smoke/FCon.Smoke.csproj" />
+</Solution>
