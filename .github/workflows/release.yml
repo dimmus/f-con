@@ -1,0 +1,85 @@
+# Builds, tests and packages FCon, then attaches the zips to the GitHub Release for
+# the pushed tag. Push "v1.2.0" and a release appears; the tag must match the version
+# in FCon.App.csproj or the job stops before building anything.
+#
+# The real cores are downloaded so the smoke checks run against them, exactly as they
+# do locally. They are used for verification only and never end up in a package.
+#
+# Idempotent: a release created by hand for the same tag is kept, and its assets are
+# replaced by the ones built here.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Check the tag matches the project version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $version = ([xml](Get-Content src/FCon.App/FCon.App.csproj)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+          $tag = '${{ github.ref_name }}'
+          if ($tag -ne "v$version") { throw "Tag $tag does not match project version $version." }
+          "VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Download the proxy cores for verification
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download --repo SagerNet/sing-box --pattern 'sing-box-*-windows-amd64.zip' --dir cores
+          gh release download --repo XTLS/Xray-core --pattern 'Xray-windows-64.zip' --dir cores
+          Expand-Archive cores/sing-box-*-windows-amd64.zip -DestinationPath cores/sb
+          Expand-Archive cores/Xray-windows-64.zip -DestinationPath engines/xray
+          Copy-Item (Get-ChildItem cores/sb -Recurse -Filter sing-box.exe | Select-Object -First 1).FullName engines/sing-box/
+          & engines/sing-box/sing-box.exe version
+          & engines/xray/xray.exe version
+
+      - name: Build, test, smoke-check and package
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File build/publish.ps1
+
+      - name: Write checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem dist/*.zip | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          } | Set-Content dist/SHA256SUMS.txt -Encoding ascii
+          Get-Content dist/SHA256SUMS.txt
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ github.ref_name }}'
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title "FCon $tag" --generate-notes
+          }
+          gh release upload $tag (Get-ChildItem dist/*.zip, dist/SHA256SUMS.txt).FullName --clobber
+
+      - name: Keep the packages as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FCon-packages
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS.txt
