@@ -30,6 +30,27 @@ public sealed record HealthResult(HealthVerdict Verdict, int LatencyMs, string? 
 }
 
 /// <summary>
+/// The two questions the supervisor asks the network, behind an interface so the
+/// state machine can be driven by scripted answers in tests.
+/// </summary>
+public interface IHealthProbe
+{
+    Task<HealthResult> CheckAsync(int httpPort, string url, int timeoutMs, CancellationToken ct);
+
+    Task<ExitInfo?> LookupExitAsync(int httpPort, CancellationToken ct);
+}
+
+/// <summary>The real thing: an HTTP fetch through the local listener.</summary>
+public sealed class DefaultHealthProbe : IHealthProbe
+{
+    public Task<HealthResult> CheckAsync(int httpPort, string url, int timeoutMs, CancellationToken ct) =>
+        HealthProbe.CheckAsync(httpPort, url, timeoutMs, ct);
+
+    public Task<ExitInfo?> LookupExitAsync(int httpPort, CancellationToken ct) =>
+        ExitInfoProbe.LookupAsync(httpPort, ct: ct);
+}
+
+/// <summary>
 /// Proves the tunnel actually carries traffic. Connecting a core and binding a port says
 /// nothing about whether packets reach the internet, so every connection is confirmed by
 /// fetching a tiny endpoint through the local proxy before it is called healthy.

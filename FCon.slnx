@@ -4,4 +4,5 @@
   <Project Path="src/FCon.Plugins.Builtin/FCon.Plugins.Builtin.csproj" />
   <Project Path="src/FCon.App/FCon.App.csproj" />
   <Project Path="tools/FCon.Smoke/FCon.Smoke.csproj" />
+  <Project Path="tests/FCon.Core.Tests/FCon.Core.Tests.csproj" />
 </Solution>

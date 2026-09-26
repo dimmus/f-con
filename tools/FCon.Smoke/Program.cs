@@ -60,7 +60,18 @@ string[] links =
     // WireGuard
     // Keys are real 32-byte values so the cores accept them; they belong to nothing.
     "wireguard://DpFqN%2Bf%2Fq3lfTCpixdyFUYc2egR3SdSi9DE2DL%2FArNI%3D@wg.example.com:51820?publickey=GgGDJ1%2FxwGjL6l6%2FgeMb2Rfb5ksGfVZmtdt1BBxXFKI%3D&address=172.16.0.2/32&mtu=1420&reserved=1,2,3#WG%20node",
+    // Hysteria 2 with obfuscation and port hopping (sing-box only)
+    "hysteria2://hy2password@hy2.example.com:443?sni=hy2.example.com&obfs=salamander&obfs-password=obfs&mport=2080-3000&up=50&down=200#Hysteria2%20node",
+    // TUIC v5 (sing-box only)
+    "tuic://b831381d-6324-4d53-ad4f-8cda48b30811:tuicpass@tuic.example.com:443?congestion_control=bbr&udp_relay_mode=native&alpn=h3&sni=tuic.example.com#TUIC%20node",
+    // AnyTLS (sing-box 1.12+ only)
+    "anytls://anypass@any.example.com:443?sni=any.example.com&fp=chrome#AnyTLS%20node",
+    // Shadowsocks 2022 wrapped in ShadowTLS v3 (sing-box only; Xray runs it as plain SS)
+    "ss://MjAyMi1ibGFrZTMtYWVzLTEyOC1nY206UnMxbW1rd0o4cHRONGtqU1ozSDVmQT09@stls.example.com:443?plugin=shadow-tls%3Bhost%3Dcloud.tencent.com%3Bpassword%3Dstls%3Bversion%3D3#ShadowTLS%20node",
 ];
+
+static bool Supports(FCon.Abstractions.Plugins.IProtocolPlugin plugin, EngineKind engine) =>
+    FCon.Core.Engine.PoolEmitter.Supports(plugin.Descriptor.Engines, engine);
 
 var settings = new AppSettings();
 var routing = RoutingProfile.CreateDefault();
@@ -107,6 +118,12 @@ foreach (var link in links)
 
     foreach (var engine in new[] { EngineKind.Xray, EngineKind.SingBox })
     {
+        if (!Supports(registry.Require(node), engine))
+        {
+            Console.WriteLine($"    {engine,-8}  n/a (not supported by this core)");
+            continue;
+        }
+
         try
         {
             settings.Engine = engine;
@@ -163,6 +180,7 @@ Console.WriteLine();
         LogLevel = "debug",
         EnableSniffing = false,
         RoutingMode = RoutingMode.Rules,
+        InCoreFailover = false,
     };
     var riskyRouting = new RoutingProfile { BypassPrivateNetworks = false };
 
@@ -171,7 +189,7 @@ Console.WriteLine();
     [
         "tls.insecure", "tls.none", "vmess.alterid", "vmess.cipher",
         "lan.open", "health.verify", "health.monitor", "sniff.off",
-        "log.debug", "route.private",
+        "log.debug", "route.private", "failover.restart",
     ];
 
     foreach (var id in expected)
@@ -185,7 +203,8 @@ Console.WriteLine();
     var fixes = FCon.Core.Health.ConfigAdvisor.ApplyFixes(risky, riskyRouting);
     var after = FCon.Core.Health.ConfigAdvisor.Inspect(risky, riskyRouting, bad);
     var stillSettings = after.Any(a => a.Id is "health.verify" or "health.monitor"
-                                       or "sniff.off" or "log.debug" or "route.private");
+                                       or "sniff.off" or "log.debug" or "route.private"
+                                       or "failover.restart");
     if (stillSettings) { Console.WriteLine("MISS auto-fix left a fixable finding behind"); failures++; }
     if (!after.Any(a => a.Id == "tls.insecure")) { Console.WriteLine("MISS auto-fix wrongly cleared a server issue"); failures++; }
     Console.WriteLine($"ok   auto-fix applied {fixes.Count} change(s); server issues correctly left for the user");
@@ -339,6 +358,7 @@ settings.ApiPort = 0;
 // download one — which it never can here, since these servers do not exist.
 var startupRouting = RoutingProfile.CreateDefault();
 
+var written = 0;
 foreach (var link in links)
 {
     var n = importer.Import(link).Nodes[0];
@@ -346,15 +366,57 @@ foreach (var link in links)
 
     foreach (var engine in new[] { EngineKind.SingBox, EngineKind.Xray })
     {
+        if (!Supports(registry.Require(n), engine)) continue;
         settings.Engine = engine;
         var cfg = engine == EngineKind.Xray
             ? xray.Build(n, settings, startupRouting)
             : singbox.Build(n, settings, startupRouting);
         var suffix = engine == EngineKind.Xray ? "xray" : "singbox";
         File.WriteAllText(Path.Combine(outputDir, $"{safe}.{suffix}.json"), cfg.ToJson());
+        written++;
     }
 }
-Console.WriteLine($"Wrote {links.Length * 2} configs to {outputDir}");
+
+// The grouped shape: every server the core can run, in one config, with the selector
+// and automatic group in front. This is what the app actually starts, so it must run.
+{
+    var all = links.Select(l => importer.Import(l).Nodes[0]).ToList();
+    var version = EngineLocator.Describe(EngineKind.SingBox)?.Version;
+
+    settings.Engine = EngineKind.SingBox;
+    var fixedPool = singbox.Build(all[0], all, settings, startupRouting, version, autoSelect: false);
+    File.WriteAllText(Path.Combine(outputDir, "_group_fixed.singbox.json"), fixedPool.ToJson());
+    var autoPool = singbox.Build(all[0], all, settings, startupRouting, version, autoSelect: true);
+    File.WriteAllText(Path.Combine(outputDir, "_group_auto.singbox.json"), autoPool.ToJson());
+    written += 2;
+
+    if (fixedPool.SelectorTag is null || fixedPool.Members.Count < all.Count - 1)
+    {
+        Console.WriteLine($"MISS grouped sing-box config: selector={fixedPool.SelectorTag}, members={fixedPool.Members.Count}");
+        failures++;
+    }
+    else
+    {
+        Console.WriteLine($"ok   grouped sing-box config: {fixedPool.Members.Count} members behind selector \"{fixedPool.SelectorTag}\"");
+    }
+
+    settings.Engine = EngineKind.Xray;
+    var xrayVersion = EngineLocator.Describe(EngineKind.Xray)?.Version;
+    var balanced = xray.Build(all[0], all, settings, startupRouting, xrayVersion, autoSelect: true);
+    File.WriteAllText(Path.Combine(outputDir, "_group_auto.xray.json"), balanced.ToJson());
+    written++;
+
+    if (balanced.AutoTag is null || balanced.Root["observatory"] is null)
+    {
+        Console.WriteLine("MISS grouped Xray config has no balancer/observatory");
+        failures++;
+    }
+    else
+    {
+        Console.WriteLine($"ok   grouped Xray config: {balanced.Members.Count} members behind balancer \"{balanced.AutoTag}\"");
+    }
+}
+Console.WriteLine($"Wrote {written} configs to {outputDir}");
 Console.WriteLine();
 
 foreach (var engine in new[] { EngineKind.SingBox, EngineKind.Xray })
@@ -433,6 +495,38 @@ static string FirstFatal(string output)
     line ??= clean.ReplaceLineEndings("\n").Split('\n').FirstOrDefault(l => l.Length > 0) ?? "unknown";
     return line.Length > 170 ? line[..170] : line;
 }
+
+// The real-URL latency path: a throw-away sing-box carrying every server, measured
+// through its API. The servers do not exist, so every answer is "unreachable" - what is
+// being proved is that the probe core starts, the API authenticates, and each server
+// gets a verdict by the URL method rather than a handshake.
+if (EngineLocator.Describe(EngineKind.SingBox) is not null)
+{
+    var probeSettings = new AppSettings { LatencyTimeoutMs = 1500, LatencyConcurrency = 16, ApiPort = 39082 };
+    var tester = new FCon.Core.Health.LatencyTester(
+        registry, () => probeSettings, () => (null, null), (m, _) => Console.WriteLine("      " + m));
+
+    var all = links.Select(l => importer.Import(l).Nodes[0]).ToList();
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+    var measured = await tester.TestAsync(all);
+    sw.Stop();
+
+    var byUrl = measured.Count(r => r.Method == FCon.Core.Health.LatencyTester.MethodUrl);
+    if (measured.Count != all.Count || byUrl < all.Count - 1)
+    {
+        Console.WriteLine($"MISS latency tester: {measured.Count}/{all.Count} results, {byUrl} by real request");
+        failures++;
+    }
+    else
+    {
+        Console.WriteLine($"ok   latency tester measured {byUrl} servers by real request in {sw.ElapsedMilliseconds} ms (probe core)");
+    }
+}
+else
+{
+    Console.WriteLine("skip  latency tester: sing-box not installed");
+}
+Console.WriteLine();
 
 // Dump a full config pair for visual inspection when asked.
 if (args.Contains("--dump"))

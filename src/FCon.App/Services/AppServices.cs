@@ -33,20 +33,38 @@ public sealed class AppServices : IAsyncDisposable
         Profiles = new ProfileStore();
         Importer = new LinkImporter(Registry);
         Subscriptions = new SubscriptionService(Profiles, Importer, () => Settings);
-        Engine = new EngineController(Registry, () => Settings, () => Routing);
         Log = new LogBuffer();
         Quality = new QualityStore();
+
+        EnsureApiSecret();
+
+        // ActiveNodes, not Nodes: a deactivated subscription must not be picked as
+        // "best" or failed over to, which is the whole point of deactivating it.
+        // Ranked best-first, so the failover group keeps the servers with a record.
+        Engine = new EngineController(
+            Registry,
+            () => Settings,
+            () => Routing,
+            () => Quality.Rank(Profiles.ActiveNodes));
+
+        Traffic = new TrafficMeter(() => Settings);
 
         Supervisor = new ConnectionSupervisor(
             Engine,
             Quality,
             () => Settings,
-            // ActiveNodes, not Nodes: a deactivated subscription must not be picked as
-            // "best" or failed over to, which is the whole point of deactivating it.
             () => Profiles.ActiveNodes,
+            (message, isError) => Log.Add(new EngineLogLine(DateTimeOffset.Now, message, isError)),
+            traffic: () => Traffic.Available ? Traffic.Current : null);
+
+        Latency = new LatencyTester(
+            Registry,
+            () => Settings,
+            () => (Engine.ActiveConfig, Engine.Api),
             (message, isError) => Log.Add(new EngineLogLine(DateTimeOffset.Now, message, isError)));
 
-        Traffic = new TrafficMeter(() => Settings);
+        Downloader = new EngineDownloader(
+            () => Supervisor.Current.IsUsable ? Settings.HttpPort : null);
 
         // Counters only mean anything while a tunnel is up.
         Supervisor.Changed += snapshot =>
@@ -58,6 +76,17 @@ public sealed class AppServices : IAsyncDisposable
         Engine.LogReceived += line => Log.Add(line);
 
         EnsureFreePorts();
+    }
+
+    /// <summary>
+    /// The control API is what lets the app switch servers inside the running core. It
+    /// must not be open to every local process, so it gets a bearer token, made once.
+    /// </summary>
+    private void EnsureApiSecret()
+    {
+        if (!string.IsNullOrEmpty(Settings.ApiSecret)) return;
+        Settings.ApiSecret = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16));
+        _ = SaveSettingsAsync();
     }
 
     /// <summary>
@@ -99,6 +128,8 @@ public sealed class AppServices : IAsyncDisposable
     public QualityStore Quality { get; }
     public ConnectionSupervisor Supervisor { get; }
     public TrafficMeter Traffic { get; }
+    public LatencyTester Latency { get; }
+    public EngineDownloader Downloader { get; }
 
     public Task SaveSettingsAsync() => _settingsStore.SaveAsync(Settings);
 

@@ -1,6 +1,7 @@
 using FCon.Abstractions.Model;
 using FCon.Core.Config;
 using FCon.Core.Engine;
+using FCon.Core.Net;
 
 namespace FCon.Core.Health;
 
@@ -31,20 +32,47 @@ public sealed record LinkSnapshot(
 }
 
 /// <summary>
+/// Knobs that only tests need to turn. Production uses the defaults.
+/// </summary>
+public sealed record SupervisorTiming
+{
+    /// <summary>Backoff between full rounds: quick at first, then easing off to a minute.</summary>
+    public Func<int, TimeSpan> RetryDelay { get; init; } =
+        round => TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, Math.Min(round, 6))));
+
+    /// <summary>Overrides the settings-driven health interval when set.</summary>
+    public TimeSpan? MonitorInterval { get; init; }
+
+    /// <summary>Once a probe has failed, re-probe this quickly instead of waiting a full interval.</summary>
+    public TimeSpan DegradedInterval { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>How long to give the core after re-pointing its selector before probing again.</summary>
+    public TimeSpan SwitchSettle { get; init; } = TimeSpan.FromSeconds(3);
+
+    public static SupervisorTiming Default { get; } = new();
+}
+
+/// <summary>
 /// Turns "the core started" into "the tunnel works, and keeps working".
 ///
 /// A proxy core binds its listener whether or not the server behind it is alive, so a
 /// connection is not trusted until traffic has been carried end to end. After that the
-/// tunnel is probed on a timer: a failing link is restarted, and a server that cannot be
-/// recovered is set aside in favour of the next best one.
+/// tunnel is watched: real traffic counts as proof on its own, and an active probe runs
+/// only when nothing has flowed. A failing link is first handed to the core's own
+/// automatic group, which swaps the server without a restart; only when that is not
+/// possible is the core restarted, and a server that cannot be recovered is set aside in
+/// favour of the next best one.
 /// </summary>
 public sealed class ConnectionSupervisor : IAsyncDisposable
 {
-    private readonly EngineController _engine;
+    private readonly IEngineController _engine;
     private readonly QualityStore _quality;
     private readonly Func<AppSettings> _settings;
     private readonly Func<IReadOnlyList<ProxyNode>> _candidates;
     private readonly Action<string, bool> _log;
+    private readonly IHealthProbe _probe;
+    private readonly Func<TrafficSample?>? _traffic;
+    private readonly SupervisorTiming _timing;
 
     private readonly Lock _gate = new();
     private CancellationTokenSource? _monitor;
@@ -67,18 +95,33 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
     /// <summary>Kept across health updates so the country does not flicker away between probes.</summary>
     private ExitInfo? _exit;
 
+    /// <summary>
+    /// The server traffic is actually using. Equals the primary unless the core's
+    /// automatic group has taken over, in which case it is whatever the group picked.
+    /// </summary>
+    private ProxyNode? _liveNode;
+
+    private long _passiveMark;
+    private bool _passiveMarkValid;
+
     public ConnectionSupervisor(
-        EngineController engine,
+        IEngineController engine,
         QualityStore quality,
         Func<AppSettings> settings,
         Func<IReadOnlyList<ProxyNode>> candidates,
-        Action<string, bool> log)
+        Action<string, bool> log,
+        IHealthProbe? probe = null,
+        Func<TrafficSample?>? traffic = null,
+        SupervisorTiming? timing = null)
     {
         _engine = engine;
         _quality = quality;
         _settings = settings;
         _candidates = candidates;
         _log = log;
+        _probe = probe ?? new DefaultHealthProbe();
+        _traffic = traffic;
+        _timing = timing ?? SupervisorTiming.Default;
 
         _engine.StatusChanged += OnEngineStatusChanged;
     }
@@ -89,10 +132,6 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
 
     // ------------------------------------------------------------- connect
 
-    /// <summary>
-    /// Connect to a specific server, verify it, and start supervising. Falls over to the
-    /// next ranked server when verification fails and failover is enabled.
-    /// </summary>
     /// <summary>
     /// Start connecting, and keep trying until it works or the user stops it. Returns as
     /// soon as the attempt is under way, not when it succeeds — progress arrives through
@@ -131,7 +170,11 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
             var settings = _settings();
             tried.Add(current.Id);
 
-            if (await TryBringUpAsync(current, settings, ct).ConfigureAwait(false))
+            // After the first failure, let the core choose from its group from the
+            // start rather than betting on one server again.
+            var autoSelect = settings.PreferBestServer || tried.Count > 1 || round > 0;
+
+            if (await TryBringUpAsync(current, settings, autoSelect, ct).ConfigureAwait(false))
             {
                 StartMonitor();
                 return;
@@ -151,7 +194,7 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
             // Every candidate has been tried this round. Pause, then start again from the
             // best-ranked server; quarantines may have lapsed by then.
             round++;
-            var wait = RetryDelay(round);
+            var wait = _timing.RetryDelay(round);
             Publish(
                 LinkState.Recovering,
                 current,
@@ -169,16 +212,15 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
             }
 
             tried.Clear();
-            current = PickNext(tried) ?? current;
+
+            // With failover off the user chose this server; a new round retries it,
+            // not whichever server happens to rank best.
+            if (settings.AutoFailover) current = PickNext(tried) ?? current;
         }
 
         // Only reached by an explicit stop; a give-up path no longer exists.
         if (!_wanted) Publish(LinkState.Idle, null, null, null);
     }
-
-    /// <summary>Backoff between full rounds: quick at first, then easing off to a minute.</summary>
-    private static TimeSpan RetryDelay(int round) =>
-        TimeSpan.FromSeconds(Math.Min(60, Math.Pow(2, Math.Min(round, 6))));
 
     private async Task StopAttemptAsync()
     {
@@ -226,6 +268,7 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
     {
         _wanted = false;
         _exit = null;
+        _liveNode = null;
         await StopAttemptAsync().ConfigureAwait(false);
         await StopMonitorAsync().ConfigureAwait(false);
         await _engine.DisconnectAsync().ConfigureAwait(false);
@@ -233,11 +276,13 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
     }
 
     /// <summary>Bring one server up and confirm it carries traffic.</summary>
-    private async Task<bool> TryBringUpAsync(ProxyNode node, AppSettings settings, CancellationToken ct)
+    private async Task<bool> TryBringUpAsync(ProxyNode node, AppSettings settings, bool autoSelect, CancellationToken ct)
     {
         Publish(LinkState.Connecting, node, null, $"Connecting to {node.DisplayName}...");
+        _liveNode = null;
+        ResetPassive();
 
-        var status = await _engine.ConnectAsync(node, ct).ConfigureAwait(false);
+        var status = await _engine.ConnectAsync(node, autoSelect, ct).ConfigureAwait(false);
         if (status.State != ConnectionState.Connected)
         {
             _quality.RecordFailure(node.Id, status.Message);
@@ -247,40 +292,122 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
 
         if (!settings.VerifyOnConnect)
         {
-            Publish(LinkState.Healthy, node, null, "Connected (not verified).");
+            _liveNode = await ResolveLiveNodeAsync(node, ct).ConfigureAwait(false);
+            Publish(LinkState.Healthy, _liveNode, null, "Connected (not verified).");
             return true;
         }
 
         Publish(LinkState.Verifying, node, null, "Checking that traffic flows...");
 
-        var health = await HealthProbe.CheckAsync(
+        var health = await _probe.CheckAsync(
             settings.HttpPort, settings.LatencyTestUrl, settings.LatencyTimeoutMs, ct).ConfigureAwait(false);
 
-        if (!health.Ok)
+        ProxyNode live;
+        if (health.Ok)
+        {
+            live = await ResolveLiveNodeAsync(node, ct).ConfigureAwait(false);
+        }
+        else
         {
             _quality.RecordFailure(node.Id, health.Describe());
             _log($"{node.DisplayName} connected but carried no traffic: {health.Describe()}", true);
 
-            // Leave nothing half-configured behind before trying the next server.
-            await _engine.DisconnectAsync().ConfigureAwait(false);
-            Publish(LinkState.Failed, node, null, $"No traffic through {node.DisplayName}: {health.Describe()}");
-            return false;
+            // The core may have other servers on board: let it swap before we tear down.
+            var switched = await TrySwitchToAutoAsync(node, settings, ct).ConfigureAwait(false);
+            if (switched is null)
+            {
+                // Leave nothing half-configured behind before trying the next server.
+                await _engine.DisconnectAsync().ConfigureAwait(false);
+                Publish(LinkState.Failed, node, null, $"No traffic through {node.DisplayName}: {health.Describe()}");
+                return false;
+            }
+
+            (live, health) = switched.Value;
         }
 
-        _quality.RecordSuccess(node.Id);
-        _quality.RecordLatency(node.Id, health.LatencyMs);
-        Publish(LinkState.Healthy, node, health.LatencyMs, $"Connected via {node.DisplayName}");
+        _quality.RecordSuccess(live.Id);
+        _quality.RecordLatency(live.Id, health.LatencyMs);
+        _liveNode = live;
+        Publish(LinkState.Healthy, live, health.LatencyMs, $"Connected via {live.DisplayName}");
 
         // Ask the far side where the traffic surfaced. This is both the country readout
         // and the strongest cheap proof the tunnel is genuinely carrying data.
-        _exit = await ExitInfoProbe.LookupAsync(settings.HttpPort, ct: ct).ConfigureAwait(false);
-        if (_exit is not null)
+        await RefreshExitAsync(live, health.LatencyMs, settings, ct).ConfigureAwait(false);
+        return true;
+    }
+
+    private async Task RefreshExitAsync(ProxyNode node, int? latency, AppSettings settings, CancellationToken ct)
+    {
+        var exit = await _probe.LookupExitAsync(settings.HttpPort, ct).ConfigureAwait(false);
+        if (exit is null || ct.IsCancellationRequested) return;
+
+        _exit = exit;
+        _log($"Exit: {exit.Describe()}", false);
+        if (Current.State == LinkState.Healthy)
+            Publish(LinkState.Healthy, node, latency, $"Connected via {node.DisplayName}");
+    }
+
+    /// <summary>
+    /// Re-point the core's selector at its automatic group and see whether traffic
+    /// flows again. Null when the config has no group, the core has no API, the group is
+    /// already in charge, or the switch did not help. This is the path that avoids a
+    /// restart: nothing is torn down, and connections from other apps keep working.
+    /// </summary>
+    private async Task<(ProxyNode Node, HealthResult Health)?> TrySwitchToAutoAsync(
+        ProxyNode failing,
+        AppSettings settings,
+        CancellationToken ct)
+    {
+        var config = _engine.ActiveConfig;
+        var api = _engine.Api;
+        if (config?.SelectorTag is null || config.AutoTag is null || api is null) return null;
+
+        var selector = await api.GetProxyAsync(config.SelectorTag, ct).ConfigureAwait(false);
+        if (selector is null) return null;
+        if (string.Equals(selector.Now, config.AutoTag, StringComparison.Ordinal)) return null;
+
+        if (!await api.SelectAsync(config.SelectorTag, config.AutoTag, ct).ConfigureAwait(false)) return null;
+
+        _log("Handed the connection to the core's automatic group.", false);
+        Publish(LinkState.Recovering, failing, null, "Switching server inside the core...");
+
+        try
         {
-            _log($"Exit: {_exit.Describe()}", false);
-            Publish(LinkState.Healthy, node, health.LatencyMs, $"Connected via {node.DisplayName}");
+            await Task.Delay(_timing.SwitchSettle, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
         }
 
-        return true;
+        var health = await _probe.CheckAsync(
+            settings.HttpPort, settings.LatencyTestUrl, settings.LatencyTimeoutMs, ct).ConfigureAwait(false);
+        if (!health.Ok) return null;
+
+        var live = await ResolveLiveNodeAsync(failing, ct).ConfigureAwait(false);
+        _log($"Traffic now flows through {live.DisplayName}.", false);
+        return (live, health);
+    }
+
+    /// <summary>
+    /// Which server the core is really using. With a selector it may be any member of
+    /// the automatic group; without one it is the primary.
+    /// </summary>
+    private async Task<ProxyNode> ResolveLiveNodeAsync(ProxyNode fallback, CancellationToken ct)
+    {
+        var config = _engine.ActiveConfig;
+        var api = _engine.Api;
+        if (config?.SelectorTag is null || config.AutoTag is null || api is null) return fallback;
+
+        var selector = await api.GetProxyAsync(config.SelectorTag, ct).ConfigureAwait(false);
+        var now = selector?.Now;
+        if (now is not null && string.Equals(now, config.AutoTag, StringComparison.Ordinal))
+        {
+            var group = await api.GetProxyAsync(config.AutoTag, ct).ConfigureAwait(false);
+            now = group?.Now;
+        }
+
+        return config.NodeFor(now) ?? fallback;
     }
 
     private ProxyNode? PickNext(HashSet<Guid> exclude) =>
@@ -337,7 +464,12 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
         while (!ct.IsCancellationRequested)
         {
             var settings = _settings();
-            var interval = TimeSpan.FromSeconds(Math.Max(5, settings.HealthCheckIntervalSeconds));
+
+            // Once something has failed, look again soon: a minute of dead tunnel is
+            // what the interval-times-threshold arithmetic used to cost.
+            var interval = failures > 0
+                ? _timing.DegradedInterval
+                : _timing.MonitorInterval ?? TimeSpan.FromSeconds(Math.Max(5, settings.HealthCheckIntervalSeconds));
 
             try
             {
@@ -348,9 +480,34 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
                 return;
             }
 
-            if (ct.IsCancellationRequested || _engine.ActiveNode is not { } node) return;
+            if (ct.IsCancellationRequested || _engine.ActiveNode is not { } primary) return;
 
-            var health = await HealthProbe.CheckAsync(
+            // The automatic group may have moved traffic on its own; follow it.
+            var node = await ResolveLiveNodeAsync(_liveNode ?? primary, ct).ConfigureAwait(false);
+            if (_liveNode is null || node.Id != _liveNode.Id)
+            {
+                var moved = _liveNode is not null;
+                _liveNode = node;
+                if (moved)
+                {
+                    _log($"The core moved traffic to {node.DisplayName}.", false);
+                    _ = RefreshExitAsync(node, Current.LatencyMs, settings, ct);
+                }
+            }
+
+            if (ct.IsCancellationRequested) return;
+
+            // Real traffic is the best evidence there is. Skip the synthetic probe when
+            // bytes have been arriving; it cannot false-alarm on a slow probe target.
+            if (PassiveHealthy(settings))
+            {
+                if (failures > 0) _log($"{node.DisplayName} recovered.", false);
+                failures = 0;
+                Publish(LinkState.Healthy, node, Current.LatencyMs, $"Connected via {node.DisplayName}");
+                continue;
+            }
+
+            var health = await _probe.CheckAsync(
                 settings.HttpPort, settings.LatencyTestUrl, settings.LatencyTimeoutMs, ct).ConfigureAwait(false);
 
             if (ct.IsCancellationRequested) return;
@@ -373,10 +530,49 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
             _quality.RecordFailure(node.Id, health.Describe());
             if (!settings.AutoReconnect) return;
 
+            // First choice: let the running core swap servers. No restart, no proxy
+            // flip, no dropped connections for the apps that still work.
+            var switched = await TrySwitchToAutoAsync(node, settings, ct).ConfigureAwait(false);
+            if (switched is { } s)
+            {
+                _liveNode = s.Node;
+                _quality.RecordSuccess(s.Node.Id);
+                _quality.RecordLatency(s.Node.Id, s.Health.LatencyMs);
+                Publish(LinkState.Healthy, s.Node, s.Health.LatencyMs, $"Connected via {s.Node.DisplayName}");
+                _ = RefreshExitAsync(s.Node, s.Health.LatencyMs, settings, ct);
+                failures = 0;
+                ResetPassive();
+                continue;
+            }
+
             // Hand off to recovery and let this loop end; the new connection starts its own.
             ScheduleRecovery(node);
             return;
         }
+    }
+
+    /// <summary>True when enough bytes arrived since the previous tick to count as proof of life.</summary>
+    private bool PassiveHealthy(AppSettings settings)
+    {
+        if (_traffic?.Invoke() is not { } sample) return false;
+
+        if (!_passiveMarkValid)
+        {
+            _passiveMark = sample.DownloadTotal;
+            _passiveMarkValid = true;
+            return false;
+        }
+
+        // Counters restart at zero with the core; a negative delta is a restart, not proof.
+        var delta = sample.DownloadTotal - _passiveMark;
+        _passiveMark = sample.DownloadTotal;
+        return settings.PassiveHealthMinBytes > 0 && delta >= settings.PassiveHealthMinBytes;
+    }
+
+    private void ResetPassive()
+    {
+        _passiveMarkValid = false;
+        _passiveMark = 0;
     }
 
     /// <summary>

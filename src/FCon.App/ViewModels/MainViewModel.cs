@@ -502,7 +502,8 @@ public sealed partial class MainViewModel : ObservableObject
         var progress = new Progress<LatencyResult>(result =>
         {
             done++;
-            BusyText = $"Testing {done}/{nodes.Count}";
+            BusyText = $"Testing {done}/{nodes.Count}"
+                       + (result.Method == LatencyTester.MethodUrl ? " (real requests)" : " (handshake)");
 
             var row = _allRows.FirstOrDefault(r => r.Id == result.NodeId);
             if (row is not null) row.Node = row.Node with { LatencyMs = result.Milliseconds };
@@ -510,22 +511,34 @@ public sealed partial class MainViewModel : ObservableObject
 
         try
         {
-            var results = await LatencyProbe.TcpBatchAsync(
-                nodes,
-                _services.Settings.LatencyConcurrency,
-                _services.Settings.LatencyTimeoutMs,
-                progress,
-                _testCts.Token);
+            var results = await _services.Latency.TestAsync(nodes, progress, _testCts.Token);
 
             foreach (var result in results)
             {
                 _services.Profiles.SetLatency(result.NodeId, result.Milliseconds);
 
-                // A handshake proves reachability, not that the tunnel works, so an
-                // unreachable server counts against it while a fast one only informs
-                // the latency estimate.
-                if (result.Reachable) _services.Quality.RecordLatency(result.NodeId, result.Milliseconds);
-                else _services.Quality.RecordFailure(result.NodeId, result.Error);
+                if (result.Method == LatencyTester.MethodUrl)
+                {
+                    // A real request through the tunnel is the same evidence the
+                    // supervisor collects: it proves the server works, not just answers.
+                    if (result.Reachable)
+                    {
+                        _services.Quality.RecordSuccess(result.NodeId);
+                        _services.Quality.RecordLatency(result.NodeId, result.Milliseconds);
+                    }
+                    else
+                    {
+                        _services.Quality.RecordFailure(result.NodeId, result.Error);
+                    }
+                }
+                else
+                {
+                    // A handshake proves reachability, not that the tunnel works, so an
+                    // unreachable server counts against it while a fast one only informs
+                    // the latency estimate.
+                    if (result.Reachable) _services.Quality.RecordLatency(result.NodeId, result.Milliseconds);
+                    else _services.Quality.RecordFailure(result.NodeId, result.Error);
+                }
             }
 
             RefreshQualityColumns();

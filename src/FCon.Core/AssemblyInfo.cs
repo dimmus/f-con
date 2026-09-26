@@ -4,3 +4,4 @@ using System.Runtime.CompilerServices;
 // like - which are implementation details that should not become public API just to be
 // testable.
 [assembly: InternalsVisibleTo("FCon.Smoke")]
+[assembly: InternalsVisibleTo("FCon.Core.Tests")]

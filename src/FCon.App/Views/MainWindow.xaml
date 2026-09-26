@@ -558,12 +558,27 @@
                                                                ToolTip="{Binding Location}" />
                                                 </StackPanel>
 
-                                                <Button Grid.Column="2" Content="Install"
-                                                        VerticalAlignment="Center" Margin="10,0,0,0"
-                                                        Command="{Binding DataContext.GetEngineCommand,
-                                                                  RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                        CommandParameter="{Binding InstallKey}"
-                                                        Visibility="{Binding CanInstall, Converter={StaticResource BoolVis}}" />
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                                            VerticalAlignment="Center" Margin="10,0,0,0">
+                                                    <TextBlock Text="{Binding Progress}" Style="{StaticResource Caption}"
+                                                               VerticalAlignment="Center" Margin="0,0,10,0"
+                                                               Visibility="{Binding IsBusy, Converter={StaticResource BoolVis}}" />
+                                                    <Button Content="{Binding InstallLabel}"
+                                                            ToolTip="Fetch the latest stable release from GitHub. The archive is checked against the published SHA-256 before it is installed."
+                                                            Command="{Binding DataContext.InstallEngineCommand,
+                                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            Visibility="{Binding IsBusy, Converter={StaticResource BoolVis},
+                                                                         ConverterParameter=invert}" />
+                                                    <Button Content="manual" Style="{StaticResource GhostButton}"
+                                                            Margin="6,0,0,0"
+                                                            ToolTip="Open the releases page and the engines folder instead."
+                                                            Command="{Binding DataContext.GetEngineCommand,
+                                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding InstallKey}"
+                                                            Visibility="{Binding IsBusy, Converter={StaticResource BoolVis},
+                                                                         ConverterParameter=invert}" />
+                                                </StackPanel>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -649,12 +664,25 @@
                                           Margin="0,0,22,8" />
                                 <CheckBox Content="Always start with the best server" IsChecked="{Binding PreferBestServer}"
                                           Margin="0,0,22,8" />
+                                <CheckBox Content="Switch servers inside the core" IsChecked="{Binding InCoreFailover}"
+                                          Margin="0,0,22,8"
+                                          ToolTip="Put the best servers into the core as a group, so a failing one is swapped in about a second without restarting the core or dropping other connections. Off: one server per config, restart to change." />
                             </WrapPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                <TextBlock Text="Check every (seconds)" VerticalAlignment="Center"
-                                           Style="{StaticResource Caption}" />
-                                <TextBox Width="90" Text="{Binding HealthCheckIntervalSeconds}" Margin="10,0,0,0" />
-                            </StackPanel>
+                            <WrapPanel Margin="0,6,0,0">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,22,0">
+                                    <TextBlock Text="Check every (seconds)" VerticalAlignment="Center"
+                                               Style="{StaticResource Caption}" />
+                                    <TextBox Width="90" Text="{Binding HealthCheckIntervalSeconds}" Margin="10,0,0,0" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Servers in the group" VerticalAlignment="Center"
+                                               Style="{StaticResource Caption}"
+                                               ToolTip="Every member is measured on the health interval; the cap bounds that traffic." />
+                                    <TextBox Width="90" Text="{Binding FailoverPoolSize}" Margin="10,0,0,0" />
+                                </StackPanel>
+                            </WrapPanel>
+                            <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0" TextWrapping="Wrap"
+                                       Text="While connected, real traffic counts as proof the tunnel works; the probe only runs when nothing has flowed. A failed probe is re-checked within seconds, and the running core is asked to switch server before anything is restarted." />
                         </StackPanel>
                     </Border>
 
