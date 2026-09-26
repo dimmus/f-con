@@ -43,11 +43,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Only engines/README.md is tracked; the core folders do not exist on a fresh checkout.
+          New-Item -ItemType Directory -Force -Path engines/sing-box, engines/xray | Out-Null
           gh release download --repo SagerNet/sing-box --pattern 'sing-box-*-windows-amd64.zip' --dir cores
           gh release download --repo XTLS/Xray-core --pattern 'Xray-windows-64.zip' --dir cores
-          Expand-Archive cores/sing-box-*-windows-amd64.zip -DestinationPath cores/sb
+          Expand-Archive (Get-Item cores/sing-box-*-windows-amd64.zip).FullName -DestinationPath cores/sb
           Expand-Archive cores/Xray-windows-64.zip -DestinationPath engines/xray
-          Copy-Item (Get-ChildItem cores/sb -Recurse -Filter sing-box.exe | Select-Object -First 1).FullName engines/sing-box/
+          Copy-Item (Get-ChildItem cores/sb -Recurse -Filter sing-box.exe | Select-Object -First 1).FullName engines/sing-box/sing-box.exe
           & engines/sing-box/sing-box.exe version
           & engines/xray/xray.exe version
 
