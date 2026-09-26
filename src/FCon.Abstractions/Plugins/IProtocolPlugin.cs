@@ -36,6 +36,13 @@ public interface IEmitContext
     /// <summary>Version string of the target core, when known — lets plugins gate new fields.</summary>
     string? EngineVersion { get; }
 
+    /// <summary>
+    /// True when the target core is at least the given version. Also true when the version
+    /// is unknown (no core installed, preview pane), so gating only bites on a core that is
+    /// known to be too old — a plugin should emit the modern form by default.
+    /// </summary>
+    bool EngineAtLeast(int major, int minor, int patch = 0);
+
     /// <summary>Apply the node's transport settings to an outbound the plugin is building.</summary>
     void ApplyTransport(JsonObject outbound, ProxyNode node, EngineKind engine);
 
@@ -51,6 +58,14 @@ public interface IEmitContext
     /// sing-box 1.11 onward. Ignored for engines that have no such distinction.
     /// </summary>
     void DeclareEndpoint();
+
+    /// <summary>
+    /// Emit a helper outbound that the main one detours through — the shape ShadowTLS
+    /// takes in sing-box, where a Shadowsocks outbound rides on a separate shadowtls
+    /// outbound. The host places it beside the main outbound. Its tag must be unique;
+    /// derive it from <see cref="Tag"/> (for example <c>Tag + "-stls"</c>).
+    /// </summary>
+    void EmitAuxiliary(JsonObject outbound);
 
     void Warn(string message);
 }
@@ -75,6 +90,9 @@ public sealed class FConPluginAssemblyAttribute : Attribute
 public static class ContractInfo
 {
     /// <summary>Bumped whenever <see cref="IProtocolPlugin"/> or the models change incompatibly.</summary>
-    /// <remarks>v2 added <see cref="IEmitContext.DeclareEndpoint"/>.</remarks>
-    public const int Version = 2;
+    /// <remarks>
+    /// v2 added <see cref="IEmitContext.DeclareEndpoint"/>.
+    /// v3 added <see cref="IEmitContext.EmitAuxiliary"/> and <see cref="IEmitContext.EngineAtLeast"/>.
+    /// </remarks>
+    public const int Version = 3;
 }

@@ -1,7 +1,7 @@
 using System.Diagnostics;
-using System.Text.Json;
 using FCon.Abstractions.Plugins;
 using FCon.Core.Config;
+using FCon.Core.Net;
 
 namespace FCon.Core.Health;
 
@@ -46,6 +46,9 @@ public sealed record TrafficSample(
 /// than being guessed. Xray only exposes its statistics over gRPC, which would mean
 /// bundling generated protobuf clients for a status-bar readout, so it reports nothing
 /// and the UI says so rather than showing an invented number.
+///
+/// Besides the status bar, the totals feed the supervisor's passive health check: bytes
+/// arriving are proof the tunnel works without sending a probe.
 /// </summary>
 public sealed class TrafficMeter : IAsyncDisposable
 {
@@ -93,7 +96,7 @@ public sealed class TrafficMeter : IAsyncDisposable
         lock (_gate)
         {
             _cts = cts;
-            _loop = Task.Run(() => PollAsync(settings.ApiPort, cts.Token), CancellationToken.None);
+            _loop = Task.Run(() => PollAsync(settings.ApiPort, settings.ApiSecret, cts.Token), CancellationToken.None);
         }
     }
 
@@ -114,28 +117,17 @@ public sealed class TrafficMeter : IAsyncDisposable
         Sampled?.Invoke(Current);
     }
 
-    private async Task PollAsync(int apiPort, CancellationToken ct)
+    private async Task PollAsync(int apiPort, string? secret, CancellationToken ct)
     {
         // Loopback only: this must never be routed through the proxy it is measuring.
-        using var handler = new HttpClientHandler { UseProxy = false };
-        using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(3) };
-        var endpoint = $"http://127.0.0.1:{apiPort}/connections";
+        using var api = new ClashApiClient(apiPort, secret);
 
         while (!ct.IsCancellationRequested)
         {
-            try
-            {
-                var body = await client.GetStringAsync(endpoint, ct).ConfigureAwait(false);
-                if (TryRead(body, out var up, out var down, out var connections))
-                {
-                    Publish(up, down, connections);
-                }
-            }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
-            {
-                // The core may still be starting, or has gone away. Either way, keep the
-                // last sample and try again rather than tearing the meter down.
-            }
+            // The core may still be starting, or has gone away. Either way, keep the
+            // last sample and try again rather than tearing the meter down.
+            if (await api.GetConnectionsAsync(ct).ConfigureAwait(false) is { } snapshot)
+                Publish(snapshot.UploadTotal, snapshot.DownloadTotal, snapshot.Connections);
 
             try
             {
@@ -146,22 +138,6 @@ public sealed class TrafficMeter : IAsyncDisposable
                 return;
             }
         }
-    }
-
-    private static bool TryRead(string body, out long up, out long down, out int connections)
-    {
-        up = down = 0;
-        connections = 0;
-
-        using var document = JsonDocument.Parse(body);
-        var root = document.RootElement;
-
-        if (root.TryGetProperty("uploadTotal", out var u)) up = u.GetInt64();
-        if (root.TryGetProperty("downloadTotal", out var d)) down = d.GetInt64();
-        if (root.TryGetProperty("connections", out var c) && c.ValueKind == JsonValueKind.Array)
-            connections = c.GetArrayLength();
-
-        return true;
     }
 
     private void Publish(long up, long down, int connections)

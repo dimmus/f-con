@@ -8,24 +8,56 @@ using FCon.Core.Plugins;
 namespace FCon.Core.Engine;
 
 /// <summary>
-/// Builds a sing-box configuration on the 1.11+ schema: rule actions instead of the
-/// retired block/dns outbounds, and binary rule-sets instead of the v2ray geo files.
+/// Builds a sing-box configuration on the 1.12+ schema: rule actions instead of the
+/// retired block/dns outbounds, typed DNS servers, and binary rule-sets instead of the
+/// v2ray geo files.
+///
+/// With more than one server the outbounds are wrapped in a <c>selector</c> the routing
+/// points at, and a <c>urltest</c> group the selector can be switched to. That is what
+/// lets the app change server through the API in about a second rather than by
+/// restarting the core.
 /// </summary>
 public sealed class SingBoxConfigBuilder(PluginRegistry registry)
 {
     public const string ProxyTag = "proxy";
     public const string DirectTag = "direct";
+    public const string AutoTag = "auto";
+
+    /// <summary>Oldest core the emitted schema runs on.</summary>
+    public static readonly Version MinimumVersion = new(1, 12, 0);
 
     private const string GeositeBase =
         "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-";
     private const string GeoipBase =
         "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-";
 
-    public GeneratedConfig Build(ProxyNode node, AppSettings settings, RoutingProfile routing)
+    /// <summary>Single-server config, as used by the preview pane and the smoke tool.</summary>
+    public GeneratedConfig Build(ProxyNode node, AppSettings settings, RoutingProfile routing) =>
+        Build(node, [node], settings, routing, engineVersion: null, autoSelect: false);
+
+    public GeneratedConfig Build(
+        ProxyNode primary,
+        IReadOnlyList<ProxyNode> pool,
+        AppSettings settings,
+        RoutingProfile routing,
+        string? engineVersion,
+        bool autoSelect)
     {
-        var plugin = registry.Require(node);
-        var ctx = new EmitContext(ProxyTag);
-        var proxy = plugin.EmitOutbound(node, EngineKind.SingBox, ctx);
+        var warnings = new List<string>();
+        var grouped = pool.Count > 1;
+        var primaryTag = grouped ? PoolEmitter.TagFor(primary, []) : ProxyTag;
+
+        var emitted = PoolEmitter.Emit(registry, primary, pool, EngineKind.SingBox, engineVersion, primaryTag, warnings);
+
+        // A pool that lost every other member is a single-server config after all.
+        if (grouped && emitted.Count == 1)
+        {
+            grouped = false;
+            primaryTag = ProxyTag;
+            emitted = PoolEmitter.Emit(registry, primary, [primary], EngineKind.SingBox, engineVersion, primaryTag, []);
+        }
+
+        var ctx = new EmitContext(ProxyTag, engineVersion);
 
         // Both the DNS rules and the route rules register rule-sets into this dictionary,
         // so every producer has to run before route.rule_set is materialised from it.
@@ -48,6 +80,7 @@ public sealed class SingBoxConfigBuilder(PluginRegistry registry)
                      + "or geoip: makes connecting depend on reaching GitHub. Explicit domain and "
                      + "IP rules avoid that, and avoid a mechanism sing-box removes in 1.16.");
         }
+        warnings.AddRange(ctx.Warnings);
 
         var root = new JsonObject
         {
@@ -62,18 +95,139 @@ public sealed class SingBoxConfigBuilder(PluginRegistry registry)
             ["experimental"] = BuildExperimental(settings),
         };
 
-        // WireGuard is an endpoint rather than an outbound from sing-box 1.11 onward.
-        if (ctx.IsEndpoint)
+        var outbounds = new JsonArray();
+        var endpoints = new JsonArray();
+
+        if (grouped)
         {
-            root["endpoints"] = new JsonArray(proxy);
-            root["outbounds"] = new JsonArray(BuildDirectOutbound());
-        }
-        else
-        {
-            root["outbounds"] = new JsonArray(proxy, BuildDirectOutbound());
+            var nodeTags = emitted.Select(e => (JsonNode)e.Tag).ToArray();
+
+            // The selector is what routing points at. It starts on the user's pick (or on
+            // the automatic group) and can be re-pointed through the API at any time.
+            outbounds.Add(new JsonObject
+            {
+                ["type"] = "selector",
+                ["tag"] = ProxyTag,
+                ["outbounds"] = new JsonArray([(JsonNode)AutoTag, .. nodeTags.Select(t => t!.DeepClone())]),
+                ["default"] = autoSelect ? AutoTag : primaryTag,
+                // A deliberate switch means the old server is not wanted; drop its streams.
+                ["interrupt_exist_connections"] = true,
+            });
+
+            // The automatic group keeps every member measured on the health interval.
+            // Tolerance stops it flapping between two servers a few milliseconds apart.
+            outbounds.Add(new JsonObject
+            {
+                ["type"] = "urltest",
+                ["tag"] = AutoTag,
+                ["outbounds"] = new JsonArray(nodeTags),
+                ["url"] = settings.LatencyTestUrl,
+                ["interval"] = $"{Math.Max(10, settings.HealthCheckIntervalSeconds)}s",
+                ["tolerance"] = 150,
+                ["idle_timeout"] = "30m",
+            });
+
+            warnings.Add($"{emitted.Count} servers are in the failover group; the core switches between them itself.");
         }
 
-        return new GeneratedConfig(root, ctx.Warnings);
+        foreach (var e in emitted)
+        {
+            // WireGuard is an endpoint rather than an outbound from sing-box 1.11 onward.
+            if (e.IsEndpoint) endpoints.Add(e.Outbound);
+            else outbounds.Add(e.Outbound);
+            foreach (var aux in e.Auxiliary) outbounds.Add(aux);
+        }
+
+        outbounds.Add(BuildDirectOutbound());
+        root["outbounds"] = outbounds;
+        if (endpoints.Count > 0) root["endpoints"] = endpoints;
+
+        return new GeneratedConfig(root, warnings)
+        {
+            Members = [.. emitted.Select(e => new PoolMember(e.Node, e.Tag))],
+            PrimaryTag = primaryTag,
+            SelectorTag = grouped ? ProxyTag : null,
+            AutoTag = grouped ? AutoTag : null,
+            StartsOnAuto = grouped && autoSelect,
+        };
+    }
+
+    /// <summary>
+    /// A config whose only job is to measure servers: every candidate as an outbound,
+    /// no listeners, no system-wide side effects, and the control API on a private port.
+    /// Real-URL latency is then read per server through the API.
+    /// </summary>
+    public GeneratedConfig BuildProbe(
+        IReadOnlyList<ProxyNode> nodes,
+        AppSettings settings,
+        int apiPort,
+        string apiSecret,
+        string? engineVersion)
+    {
+        var warnings = new List<string>();
+        var members = new List<PoolMember>();
+        var outbounds = new JsonArray();
+        var endpoints = new JsonArray();
+        var used = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var node in nodes)
+        {
+            var plugin = registry.ById(node.Protocol);
+            if (plugin is null || !PoolEmitter.Supports(plugin.Descriptor.Engines, EngineKind.SingBox)) continue;
+
+            var tag = PoolEmitter.TagFor(node, used);
+            var ctx = new EmitContext(tag, engineVersion);
+            try
+            {
+                var outbound = plugin.EmitOutbound(node, EngineKind.SingBox, ctx);
+                if (ctx.IsEndpoint) endpoints.Add(outbound);
+                else outbounds.Add(outbound);
+                foreach (var aux in ctx.Auxiliary) outbounds.Add(aux);
+                members.Add(new PoolMember(node, tag));
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+            {
+                used.Remove(tag);
+                warnings.Add($"{node.DisplayName}: {ex.Message}");
+            }
+        }
+
+        outbounds.Add(BuildDirectOutbound());
+
+        var root = new JsonObject
+        {
+            ["log"] = new JsonObject { ["level"] = "error" },
+            ["dns"] = new JsonObject
+            {
+                ["servers"] = new JsonArray(new JsonObject
+                {
+                    ["tag"] = "bootstrap",
+                    ["type"] = "udp",
+                    ["server"] = settings.BootstrapDns,
+                    ["detour"] = DirectTag,
+                }),
+                ["final"] = "bootstrap",
+                ["strategy"] = "prefer_ipv4",
+            },
+            ["outbounds"] = outbounds,
+            ["route"] = new JsonObject
+            {
+                ["final"] = DirectTag,
+                ["auto_detect_interface"] = true,
+                ["default_domain_resolver"] = new JsonObject { ["server"] = "bootstrap" },
+            },
+            ["experimental"] = new JsonObject
+            {
+                ["clash_api"] = new JsonObject
+                {
+                    ["external_controller"] = $"127.0.0.1:{apiPort}",
+                    ["secret"] = apiSecret,
+                },
+            },
+        };
+        if (endpoints.Count > 0) root["endpoints"] = endpoints;
+
+        return new GeneratedConfig(root, warnings) { Members = members, PrimaryTag = "" };
     }
 
     /// <summary>
@@ -458,11 +612,14 @@ public sealed class SingBoxConfigBuilder(PluginRegistry registry)
 
         if (settings.ApiPort > 0)
         {
-            experimental["clash_api"] = new JsonObject
+            var api = new JsonObject
             {
                 ["external_controller"] = $"127.0.0.1:{settings.ApiPort}",
                 ["default_mode"] = "rule",
             };
+            // Without a secret any local process could re-point the selector.
+            api.SetIf("secret", settings.ApiSecret);
+            experimental["clash_api"] = api;
         }
 
         return experimental;

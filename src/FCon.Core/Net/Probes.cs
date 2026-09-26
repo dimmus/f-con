@@ -131,6 +131,9 @@ public static partial class PortProbe
 
 public sealed record LatencyResult(Guid NodeId, int Milliseconds, string? Error)
 {
+    /// <summary>"url" for a real request through the tunnel, "tcp" for a bare handshake.</summary>
+    public string Method { get; init; } = "tcp";
+
     public bool Reachable => Milliseconds >= 0;
     public static LatencyResult Unreachable(Guid id, string error) => new(id, -1, error);
 }

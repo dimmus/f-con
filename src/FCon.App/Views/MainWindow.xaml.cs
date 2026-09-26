@@ -80,11 +80,13 @@ public partial class MainWindow : Window
     {
         Loaded -= OnLoaded;
 
+        // Through the supervisor, not the engine: the automatic start must get the same
+        // verification, monitoring and failover as a click on Connect.
         if (_services.Settings.AutoStartLastServer
             && _services.Settings.ActiveNodeId is { } id
             && _services.Profiles.FindNode(id) is { } node)
         {
-            await _services.Engine.ConnectAsync(node);
+            await _services.Supervisor.ConnectAsync(node);
         }
 
         await AutoUpdateSubscriptionsAsync();

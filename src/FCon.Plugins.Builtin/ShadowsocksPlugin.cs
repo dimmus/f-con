@@ -51,11 +51,12 @@ public sealed class ShadowsocksPlugin : ProtocolPluginBase
             },
             new FieldSpec(FieldPlugin, "SIP003 plugin")
             {
-                Placeholder = "obfs-local, v2ray-plugin, ...",
+                Placeholder = "obfs-local, v2ray-plugin, shadow-tls, ...",
+                Help = "\"shadow-tls\" wraps the stream in a real TLS handshake against a decoy site (sing-box only).",
             },
             new FieldSpec(FieldPluginOpts, "Plugin options")
             {
-                Placeholder = "obfs=http;obfs-host=example.com",
+                Placeholder = "obfs=http;obfs-host=example.com  |  host=decoy.example.com;password=...;version=3",
                 VisibleWhenKey = FieldPlugin,
             },
             new FieldSpec(FieldUot, "UDP over TCP", FieldKind.Toggle) { Default = "false" },
@@ -177,6 +178,15 @@ public sealed class ShadowsocksPlugin : ProtocolPluginBase
         var method = node.GetOr(FieldMethod, "");
         var password = node.GetOr(FieldPassword, "");
 
+        if (IsShadowTls(node.Get(FieldPlugin)))
+        {
+            var opts = ParsePluginOpts(node.Get(FieldPluginOpts));
+            if (!opts.ContainsKey("password"))
+                errors.Add("shadow-tls needs a password in the plugin options, e.g. host=decoy.example.com;password=...;version=3.");
+            if (!opts.ContainsKey("host"))
+                errors.Add("shadow-tls needs the decoy host (host=...) in the plugin options.");
+        }
+
         if (method.StartsWith("2022-", StringComparison.Ordinal) && password.Length > 0)
         {
             // 2022 ciphers take base64 pre-shared keys of a cipher-determined length.
@@ -221,8 +231,19 @@ public sealed class ShadowsocksPlugin : ProtocolPluginBase
             outbound = SingBoxShell("shadowsocks", node, ctx.Tag);
             outbound["method"] = method;
             outbound["password"] = password;
-            outbound.SetIf("plugin", plugin);
-            outbound.SetIf("plugin_opts", pluginOpts);
+
+            if (IsShadowTls(plugin))
+            {
+                // sing-box models ShadowTLS as its own outbound that the Shadowsocks
+                // stream detours through, not as a SIP003 plugin.
+                outbound["detour"] = EmitShadowTls(node, pluginOpts, ctx);
+            }
+            else
+            {
+                outbound.SetIf("plugin", plugin);
+                outbound.SetIf("plugin_opts", pluginOpts);
+            }
+
             if (uot)
             {
                 outbound["udp_over_tcp"] = new JsonObject { ["enabled"] = true, ["version"] = 2 };
@@ -231,6 +252,56 @@ public sealed class ShadowsocksPlugin : ProtocolPluginBase
 
         Decorate(outbound, node, engine, ctx);
         return outbound;
+    }
+
+    public static bool IsShadowTls(string? plugin) =>
+        plugin is not null
+        && (plugin.Equals("shadow-tls", StringComparison.OrdinalIgnoreCase)
+            || plugin.Equals("shadowtls", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Emit the shadowtls outbound and return its tag for the detour.</summary>
+    private static string EmitShadowTls(ProxyNode node, string? pluginOpts, IEmitContext ctx)
+    {
+        var opts = ParsePluginOpts(pluginOpts);
+        var tag = ctx.Tag + "-stls";
+
+        var version = opts.TryGetValue("version", out var v) && int.TryParse(v, out var n) ? n : 3;
+        var fingerprint = opts.TryGetValue("fingerprint", out var fp) ? fp
+            : opts.TryGetValue("fp", out fp) ? fp
+            : node.Security.Fingerprint is { Length: > 0 } f ? f
+            : "chrome";
+
+        var tls = new JsonObject
+        {
+            ["enabled"] = true,
+            ["utls"] = new JsonObject { ["enabled"] = true, ["fingerprint"] = fingerprint },
+        };
+        tls.SetIf("server_name", opts.TryGetValue("host", out var host) ? host : node.Security.ServerName);
+        if (opts.TryGetValue("alpn", out var alpn) && alpn.Length > 0)
+            tls["alpn"] = new JsonArray(alpn.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(a => (JsonNode)a).ToArray());
+
+        var shadowTls = SingBoxShell("shadowtls", node, tag);
+        shadowTls["version"] = version;
+        if (version >= 2) shadowTls["password"] = opts.TryGetValue("password", out var pw) ? pw : "";
+        shadowTls["tls"] = tls;
+
+        ctx.EmitAuxiliary(shadowTls);
+        return tag;
+    }
+
+    /// <summary>SIP003 option syntax: <c>key=value;key=value</c>. Keys are case-insensitive.</summary>
+    internal static Dictionary<string, string> ParsePluginOpts(string? opts)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(opts)) return map;
+        foreach (var part in opts.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var eq = part.IndexOf('=');
+            if (eq <= 0) map[part] = "";
+            else map[part[..eq].Trim()] = part[(eq + 1)..].Trim();
+        }
+        return map;
     }
 
     private static bool TrySplitCredentials(string value, out string method, out string password)

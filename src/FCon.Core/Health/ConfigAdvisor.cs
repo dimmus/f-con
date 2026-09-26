@@ -184,6 +184,20 @@ public static class ConfigAdvisor
             });
         }
 
+        if (settings is { InCoreFailover: false, AutoFailover: true })
+        {
+            findings.Add(new Advice(
+                "failover.restart",
+                AdviceSeverity.Info,
+                "Failover restarts the core",
+                "Servers are not grouped inside the core, so moving to another one means "
+                + "stopping the core, which drops every open connection and briefly sends "
+                + "traffic direct. Grouping lets the core swap servers in about a second.")
+            {
+                AutoFixable = true,
+            });
+        }
+
         if (settings is { EnableSniffing: false, RoutingMode: RoutingMode.Rules })
         {
             findings.Add(new Advice(
@@ -260,6 +274,12 @@ public static class ConfigAdvisor
         {
             settings.ContinuousHealthCheck = true;
             applied.Add("Monitor the tunnel while connected");
+        }
+
+        if (settings is { InCoreFailover: false, AutoFailover: true })
+        {
+            settings.InCoreFailover = true;
+            applied.Add("Switch servers inside the core instead of restarting it");
         }
 
         if (settings is { EnableSniffing: false, RoutingMode: RoutingMode.Rules })

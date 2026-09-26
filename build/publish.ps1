@@ -178,6 +178,12 @@ if ($Offline) {
 # ------------------------------------------------------------------ tests
 
 if (-not $SkipTests) {
+    Write-Host 'Running unit tests...' -ForegroundColor Cyan
+    $unitArgs = @('test', (Join-Path $repo 'tests/FCon.Core.Tests/FCon.Core.Tests.csproj'),
+                  '-v', 'q', '--nologo') + $restoreArgs
+    & dotnet @unitArgs
+    if ($LASTEXITCODE -ne 0) { throw 'Unit tests failed; not publishing.' }
+
     Write-Host 'Running protocol checks...' -ForegroundColor Cyan
     $env:FCON_ENGINES_DIR = Join-Path $repo 'engines'
     $testArgs = @('run', '--project', (Join-Path $repo 'tools/FCon.Smoke/FCon.Smoke.csproj'),

@@ -35,6 +35,12 @@ public sealed record AppSettings
     public int ApiPort { get; set; } = 10810;
 
     /// <summary>
+    /// Bearer token for the control API. Generated once on first run; without it any
+    /// local process could switch servers or read connection metadata.
+    /// </summary>
+    public string ApiSecret { get; set; } = "";
+
+    /// <summary>
     /// False until the app has confirmed the listener ports are free. 10808/10809 are the
     /// de-facto defaults across proxy clients, so a machine with another one installed
     /// would otherwise fail to connect on first run with a bind error.
@@ -101,6 +107,27 @@ public sealed record AppSettings
 
     /// <summary>Move to the next best server when the current one cannot be recovered.</summary>
     public bool AutoFailover { get; set; } = true;
+
+    /// <summary>
+    /// Put every usable server into the core's configuration as a group, so a failing
+    /// server is swapped inside the running core in about a second instead of by
+    /// restarting it. sing-box switches at runtime through its API; Xray uses its
+    /// least-ping balancer. Off means one server per config and a restart to change.
+    /// </summary>
+    public bool InCoreFailover { get; set; } = true;
+
+    /// <summary>
+    /// How many servers the group may hold. Every member is probed on the health
+    /// interval, so the cap bounds probe traffic; the best-ranked servers are kept.
+    /// </summary>
+    public int FailoverPoolSize { get; set; } = 32;
+
+    /// <summary>
+    /// Bytes downloaded between two health ticks that count as proof the tunnel works,
+    /// letting the active probe be skipped. Real traffic is stronger evidence than a
+    /// synthetic fetch, and it cannot produce a false alarm from a slow probe target.
+    /// </summary>
+    public long PassiveHealthMinBytes { get; set; } = 256 * 1024;
 
     /// <summary>Connect to the best-ranked server rather than the last used one.</summary>
     public bool PreferBestServer { get; set; }

@@ -176,6 +176,18 @@ public sealed partial class SettingsViewModel : ObservableObject
         set => Set(() => S.PreferBestServer = value, S.PreferBestServer != value);
     }
 
+    public bool InCoreFailover
+    {
+        get => S.InCoreFailover;
+        set => Set(() => S.InCoreFailover = value, S.InCoreFailover != value, alsoRefreshAdvice: true);
+    }
+
+    public int FailoverPoolSize
+    {
+        get => S.FailoverPoolSize;
+        set => Set(() => S.FailoverPoolSize = Math.Clamp(value, 1, 256), S.FailoverPoolSize != value);
+    }
+
     public bool AutoStartLastServer
     {
         get => S.AutoStartLastServer;
@@ -331,8 +343,45 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Open the upstream releases page. FCon deliberately does not download the cores
-    /// itself — fetching and running an executable stays an explicit act by the user.
+    /// Fetch and install the latest stable core. The archive is verified against the
+    /// checksum the release publishes before anything is written next to the app.
+    /// </summary>
+    [RelayCommand]
+    private async Task InstallEngineAsync(EngineRowViewModel? row)
+    {
+        if (row is null || row.IsBusy) return;
+
+        // A running core holds its executable locked, and swapping it under a live
+        // tunnel is not something to do silently.
+        if (_services.Supervisor.Current.State != LinkState.Idle && row.Kind == S.Engine)
+        {
+            if (!_dialogs.Confirm("Disconnect to update?",
+                    $"{row.DisplayName} is in use by the current connection. Disconnect and replace it?"))
+                return;
+            await _services.Supervisor.DisconnectAsync();
+        }
+
+        row.IsBusy = true;
+        row.Progress = "Starting...";
+        try
+        {
+            var progress = new Progress<string>(text => row.Progress = text);
+            var result = await _services.Downloader.InstallAsync(row.Kind, progress);
+
+            if (result.Succeeded) _dialogs.ShowInfo("Core installed", result.Message);
+            else _dialogs.ShowError("Could not install the core", result.Message);
+        }
+        finally
+        {
+            row.IsBusy = false;
+            row.Progress = null;
+            RefreshEngineStatus();
+        }
+    }
+
+    /// <summary>
+    /// Open the upstream releases page for a manual install — the way to go when GitHub
+    /// is unreachable from here, or when a specific version is wanted.
     /// </summary>
     [RelayCommand]
     private void GetEngine(string? which)
