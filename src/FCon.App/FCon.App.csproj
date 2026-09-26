@@ -12,7 +12,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\fcon.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Product>FCon</Product>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!--
