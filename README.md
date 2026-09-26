@@ -28,7 +28,12 @@ second, without dropping what you were doing.
 
 1. Unzip `FCon-<version>-win-x64-portable.zip` (needs nothing installed) or
    `FCon-<version>-win-x64.zip` (needs the .NET Desktop Runtime 10) and run `FCon.exe`.
-2. Settings → **Download** next to sing-box or Xray.
+2. Settings → **Download** next to sing-box or Xray. Or fetch a core yourself and drop
+   the executable into `engines\sing-box\` or `engines\xray\` beside `FCon.exe`:
+   - sing-box: [latest release](https://github.com/SagerNet/sing-box/releases/latest),
+     file `sing-box-<version>-windows-amd64.zip` (sing-box 1.12 or newer)
+   - Xray: [Xray-windows-64.zip](https://github.com/XTLS/Xray-core/releases/latest/download/Xray-windows-64.zip)
+     from the [latest release](https://github.com/XTLS/Xray-core/releases/latest)
 3. Servers → paste a link or add a subscription → **Connect**.
 
 TUN mode needs sing-box and administrator rights.
@@ -45,8 +50,8 @@ powershell -ExecutionPolicy Bypass -File build/publish.ps1   # both zips into di
 ```
 
 Put `sing-box.exe` in `engines/sing-box/` and `xray.exe` in `engines/xray/`, or set
-`FCON_ENGINES_DIR`, so the smoke tool can verify against real cores. Cores are never
-packaged; sing-box must be 1.12 or newer.
+`FCON_ENGINES_DIR`, so the smoke tool can verify against real cores. Download links are
+in *Get it* above. Cores are never packaged; sing-box must be 1.12 or newer.
 
 Layout: `FCon.Abstractions` (plugin contract), `FCon.Plugins.Builtin` (the ten
 protocols), `FCon.Core` (config generation, supervision, storage), `FCon.App` (WPF),
