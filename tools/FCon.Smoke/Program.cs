@@ -340,6 +340,11 @@ if (args.Contains("--seed"))
 
 // Hand every generated config to the real cores. Valid JSON is a low bar — this is
 // what catches deprecated options and schema drift between core versions.
+//
+// The app creates its data folders before starting a core; do the same here, or on a
+// machine that has never run FCon sing-box dies opening its cache file under %APPDATA%.
+FCon.Core.AppPaths.EnsureCreated();
+
 var emitIndex = Array.IndexOf(args, "--emit");
 var outputDir = emitIndex >= 0 && emitIndex + 1 < args.Length
     ? args[emitIndex + 1]
