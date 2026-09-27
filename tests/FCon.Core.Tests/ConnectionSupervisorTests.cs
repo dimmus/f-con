@@ -216,7 +216,9 @@ public sealed class ConnectionSupervisorTests
         h.Candidates.Add(a);
 
         await h.Supervisor.ConnectAsync(a);
-        await TestKit.WaitForAsync(() => h.Supervisor.Current.State == LinkState.Healthy);
+        // A fault raised while the connect loop is still winding down is treated as
+        // that loop's own failure and ignored, so wait until it has handed over.
+        await TestKit.WaitForAsync(() => h.Supervisor.IsMonitoring && !h.Supervisor.IsAttempting);
 
         h.Engine.RaiseFault("exit code 2");
         await TestKit.WaitForAsync(() => h.Engine.ConnectCount >= 2);
@@ -234,7 +236,7 @@ public sealed class ConnectionSupervisorTests
         h.Candidates.Add(a);
 
         await h.Supervisor.ConnectAsync(a);
-        await TestKit.WaitForAsync(() => h.Supervisor.Current.State == LinkState.Healthy);
+        await TestKit.WaitForAsync(() => h.Supervisor.IsMonitoring && !h.Supervisor.IsAttempting);
         await h.Supervisor.DisconnectAsync();
 
         h.Engine.RaiseFault("exit code 2");
