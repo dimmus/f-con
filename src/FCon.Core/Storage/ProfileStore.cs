@@ -1,4 +1,5 @@
 ﻿using FCon.Abstractions.Model;
+using Defaults = FCon.Core.Subscriptions.DefaultSubscriptions;
 
 namespace FCon.Core.Storage;
 
@@ -239,6 +240,49 @@ public sealed class ProfileStore
             else _state.Subscriptions.Add(subscription);
         }
         Commit();
+    }
+
+    /// <summary>
+    /// Make sure every shipped subscription is present. One the user already added by
+    /// hand (same URL, however encoded) is adopted rather than duplicated, and gets the
+    /// shipped name if its own was the bare host. Returns how many were newly added.
+    /// </summary>
+    public int EnsureBuiltIn(IEnumerable<Defaults.Entry> defaults)
+    {
+        var added = 0;
+        var changed = false;
+        lock (_gate)
+        {
+            foreach (var entry in defaults)
+            {
+                var existing = _state.Subscriptions
+                    .FirstOrDefault(s => Defaults.SameUrl(s.Url, entry.Url));
+
+                if (existing is null)
+                {
+                    _state.Subscriptions.Add(new Subscription
+                    {
+                        Name = entry.Name,
+                        Url = entry.Url,
+                        IsBuiltIn = true,
+                    });
+                    added++;
+                    changed = true;
+                    continue;
+                }
+
+                if (existing.IsBuiltIn) continue;
+                existing.IsBuiltIn = true;
+                if (Uri.TryCreate(existing.Url, UriKind.Absolute, out var uri)
+                    && string.Equals(existing.Name, uri.Host, StringComparison.OrdinalIgnoreCase))
+                {
+                    existing.Name = entry.Name;
+                }
+                changed = true;
+            }
+        }
+        if (changed) Commit();
+        return added;
     }
 
     public void RemoveSubscription(Guid id, bool removeNodes)

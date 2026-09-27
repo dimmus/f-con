@@ -41,7 +41,9 @@ second, without dropping what you were doing.
      file `sing-box-<version>-windows-amd64.zip` (sing-box 1.12 or newer)
    - Xray: [Xray-windows-64.zip](https://github.com/XTLS/Xray-core/releases/latest/download/Xray-windows-64.zip)
      from the [latest release](https://github.com/XTLS/Xray-core/releases/latest)
-3. Servers → paste a link or add a subscription → **Connect**.
+3. Servers → **Connect**. Two curated public lists for Russia ship built in and are
+   fetched on first start. To add your own, copy a share link or a subscription address
+   and press **Ctrl+V** anywhere in the window.
 
 TUN mode needs sing-box and administrator rights.
 

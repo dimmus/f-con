@@ -31,6 +31,9 @@ public sealed class AppServices : IAsyncDisposable
 
         Registry = PluginRegistry.CreateDefault();
         Profiles = new ProfileStore();
+        // A fresh install must have somewhere to connect to. The lists are fetched by
+        // the usual subscription refresh once the window is up.
+        Profiles.EnsureBuiltIn(DefaultSubscriptions.All);
         Importer = new LinkImporter(Registry);
         Subscriptions = new SubscriptionService(Profiles, Importer, () => Settings);
         Log = new LogBuffer();

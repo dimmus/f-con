@@ -140,7 +140,8 @@ public sealed class SupervisorRegressionTests
         h.Candidates.Add(a);
 
         await h.Supervisor.ConnectAsync(a);
-        await TestKit.WaitForAsync(() => h.Supervisor.Current.State == LinkState.Healthy);
+        // The monitor starts a moment after the healthy snapshot; a nudge before that is ignored.
+        await TestKit.WaitForAsync(() => h.Supervisor.IsMonitoring);
         Assert.Equal(1, h.Probe.Calls);
 
         h.Supervisor.Nudge("Network address changed");

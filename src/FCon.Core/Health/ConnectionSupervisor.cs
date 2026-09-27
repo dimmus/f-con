@@ -390,10 +390,7 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
     /// </summary>
     public void Nudge(string reason)
     {
-        lock (_gate)
-        {
-            if (_monitorTask is not { IsCompleted: false }) return;
-        }
+        if (!IsMonitoring) return;
 
         _log($"{reason}; checking the tunnel now.", false);
         if (_wake.CurrentCount == 0)
@@ -703,6 +700,15 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
                 lock (_gate) _recovering = false;
             }
         });
+    }
+
+    /// <summary>True while the health monitor is watching a connection.</summary>
+    public bool IsMonitoring
+    {
+        get
+        {
+            lock (_gate) return _monitorTask is { IsCompleted: false };
+        }
     }
 
     /// <summary>True while a connect-and-retry loop is already running.</summary>
