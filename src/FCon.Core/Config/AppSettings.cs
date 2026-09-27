@@ -65,7 +65,14 @@ public sealed record AppSettings
 
     // --- DNS ---
     public string RemoteDns { get; set; } = "https://1.1.1.1/dns-query";
-    public string DirectDns { get; set; } = "https://223.5.5.5/dns-query";
+
+    /// <summary>
+    /// Resolver for traffic that stays off the tunnel, and for the proxy server's own
+    /// name. "local" is the system resolver: if the browser can reach the internet, so
+    /// can the core. A fixed public resolver here made every connection depend on one
+    /// far-away DNS server being reachable before the tunnel existed.
+    /// </summary>
+    public string DirectDns { get; set; } = "local";
     public string BootstrapDns { get; set; } = "1.1.1.1";
     /// <summary>Answer A/AAAA from a synthetic range so routing can act on domains under TUN.</summary>
     public bool FakeIp { get; set; }
@@ -137,6 +144,9 @@ public sealed record AppSettings
 
     public Guid? ActiveNodeId { get; set; }
     public string Theme { get; set; } = "system";
+
+    /// <summary>"system" follows Windows; otherwise "en" or "ru".</summary>
+    public string Language { get; set; } = "system";
 
     [JsonIgnore]
     public string ListenAddress => AllowLan ? "0.0.0.0" : "127.0.0.1";

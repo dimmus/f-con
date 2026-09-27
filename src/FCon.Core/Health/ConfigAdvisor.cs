@@ -35,6 +35,11 @@ public sealed record Advice(
 /// </summary>
 public static class ConfigAdvisor
 {
+    /// <summary>The Chinese public resolvers older clients ship as defaults.</summary>
+    private static bool IsFarAwayResolver(string address) =>
+        address.Contains("223.5.5.5") || address.Contains("223.6.6.6")
+        || address.Contains("119.29.29.29") || address.Contains("dns.alidns.com") || address.Contains("doh.pub");
+
     /// <summary>Ciphers that predate AEAD and offer no integrity protection.</summary>
     private static readonly string[] LegacyShadowsocksCiphers =
         ["aes-256-cfb", "aes-128-cfb", "aes-192-cfb", "chacha20-ietf", "rc4-md5", "none", "plain"];
@@ -184,6 +189,20 @@ public static class ConfigAdvisor
             });
         }
 
+        if (IsFarAwayResolver(settings.DirectDns))
+        {
+            findings.Add(new Advice(
+                "dns.direct",
+                AdviceSeverity.Warning,
+                "Direct DNS depends on a resolver in China",
+                $"The direct resolver is {settings.DirectDns}. The proxy server's own name is looked up "
+                + "through it before the tunnel exists, so if that resolver is slow or blocked from "
+                + "here, nothing connects. The system resolver has no such dependency.")
+            {
+                AutoFixable = true,
+            });
+        }
+
         if (settings is { InCoreFailover: false, AutoFailover: true })
         {
             findings.Add(new Advice(
@@ -280,6 +299,12 @@ public static class ConfigAdvisor
         {
             settings.InCoreFailover = true;
             applied.Add("Switch servers inside the core instead of restarting it");
+        }
+
+        if (IsFarAwayResolver(settings.DirectDns))
+        {
+            settings.DirectDns = "local";
+            applied.Add("Use the system resolver for direct traffic and the server's own name");
         }
 
         if (settings is { EnableSniffing: false, RoutingMode: RoutingMode.Rules })

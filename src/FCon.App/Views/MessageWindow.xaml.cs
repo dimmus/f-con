@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 using FCon.App.Services;
+using FCon.Core.Localization;
 
 namespace FCon.App.Views;
 
@@ -43,8 +44,8 @@ public partial class MessageWindow : Window
 
         if (isConfirm)
         {
-            PrimaryButton.Content = "Yes";
-            SecondaryButton.Content = "No";
+            PrimaryButton.Content = L.T("Msg_Yes");
+            SecondaryButton.Content = L.T("Msg_No");
         }
         else
         {

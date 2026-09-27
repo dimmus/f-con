@@ -5,6 +5,7 @@ using FCon.Abstractions.Model;
 using FCon.Abstractions.Plugins;
 using FCon.Core.Import;
 using FCon.Core.Plugins;
+using FCon.Core.Localization;
 
 namespace FCon.App.ViewModels;
 
@@ -48,7 +49,7 @@ public sealed partial class NodeEditorViewModel : ObservableObject
     }
 
     public bool IsNew { get; }
-    public string Title => IsNew ? "Add server" : "Edit server";
+    public string Title => IsNew ? L.T("Editor_AddServer") : L.T("Editor_EditServer");
     public IReadOnlyList<ProtocolDescriptor> Protocols { get; }
 
     public IReadOnlyList<TransportKind> AvailableTransports =>
@@ -177,7 +178,7 @@ public sealed partial class NodeEditorViewModel : ObservableObject
         var result = _importer.Import(link);
         if (!result.AnySucceeded)
         {
-            ValidationText = result.Errors.Count > 0 ? result.Errors[0] : "Link could not be parsed.";
+            ValidationText = result.Errors.Count > 0 ? result.Errors[0] : L.T("Editor_LinkNotParsed");
             HasValidationErrors = true;
             return;
         }
@@ -247,7 +248,7 @@ public sealed partial class NodeEditorViewModel : ObservableObject
         var issues = _importer.Validate(BuildNode());
         HasValidationErrors = issues.Count > 0;
         ValidationText = issues.Count == 0
-            ? "Ready to save."
+            ? L.T("Editor_ReadyToSave")
             : string.Join(Environment.NewLine, issues);
     }
 }
@@ -273,9 +274,9 @@ public sealed partial class FieldViewModel : ObservableObject
     public FieldSpec Spec { get; }
     public List<FieldViewModel> Dependents { get; } = [];
 
-    public string Label => Spec.Label;
-    public string? Help => Spec.Help;
-    public string? Placeholder => Spec.Placeholder;
+    public string Label => L.P(Spec.Label)!;
+    public string? Help => L.P(Spec.Help);
+    public string? Placeholder => L.P(Spec.Placeholder);
     public bool IsRequired => Spec.Required;
 
     public FieldKind Kind => Spec.Kind;

@@ -25,7 +25,33 @@ public static class AppPaths
     public static string DataDirectory { get; } = IsPortable
         ? Path.Combine(AppContext.BaseDirectory, "data")
         : Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FCon");
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "KVN");
+
+    /// <summary>Where the app kept its data before it was renamed from FCon.</summary>
+    public static string LegacyDataDirectory { get; } =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FCon");
+
+    /// <summary>
+    /// Carry an existing FCon profile over to the KVN folder, once. Only when the new
+    /// folder does not exist yet, so a user who has already run KVN is never overwritten.
+    /// Returns true when something was moved.
+    /// </summary>
+    public static bool MigrateLegacyData()
+    {
+        if (IsPortable) return false;
+        if (Directory.Exists(DataDirectory) || !Directory.Exists(LegacyDataDirectory)) return false;
+
+        try
+        {
+            Directory.Move(LegacyDataDirectory, DataDirectory);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // A locked file in the old folder; start fresh rather than fail to launch.
+            return false;
+        }
+    }
 
     public static string ProfilesFile => Path.Combine(DataDirectory, "profiles.json");
     public static string SettingsFile => Path.Combine(DataDirectory, "settings.json");

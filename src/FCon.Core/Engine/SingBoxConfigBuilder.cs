@@ -524,6 +524,14 @@ public sealed class SingBoxConfigBuilder(PluginRegistry registry)
         {
             if (server["path"] is null || server["path"]!.GetValue<string>().Length == 0)
                 server.Remove("path");
+
+            // The system resolver takes no address, no bootstrap and no detour.
+            if (server["type"]!.GetValue<string>() == "local")
+            {
+                server.Remove("server");
+                server.Remove("domain_resolver");
+                server.Remove("detour");
+            }
         }
 
         // No geosite rule for private networks: the ip_is_private route rule already
@@ -572,6 +580,7 @@ public sealed class SingBoxConfigBuilder(PluginRegistry registry)
 
     private static string DnsType(string address)
     {
+        if (IsLocal(address)) return "local";
         if (address.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return "https";
         if (address.StartsWith("tls://", StringComparison.OrdinalIgnoreCase)) return "tls";
         if (address.StartsWith("quic://", StringComparison.OrdinalIgnoreCase)) return "quic";
@@ -579,6 +588,10 @@ public sealed class SingBoxConfigBuilder(PluginRegistry registry)
         if (address.StartsWith("tcp://", StringComparison.OrdinalIgnoreCase)) return "tcp";
         return "udp";
     }
+
+    /// <summary>"local", "system" or "localhost" all mean the operating system's resolver.</summary>
+    public static bool IsLocal(string address) =>
+        address.Trim().ToLowerInvariant() is "local" or "system" or "localhost";
 
     private static string DnsHost(string address)
     {

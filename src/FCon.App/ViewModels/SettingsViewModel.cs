@@ -10,13 +10,15 @@ using FCon.Core.Engine;
 using FCon.Core.Health;
 using FCon.Core.Net;
 using Microsoft.Win32;
+using FCon.Core.Localization;
 
 namespace FCon.App.ViewModels;
 
 public sealed partial class SettingsViewModel : ObservableObject
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string RunValueName = "FCon";
+    private const string RunValueName = "KVN";
+    private const string LegacyRunValueName = "FCon";
 
     private readonly AppServices _services;
     private readonly IDialogService _dialogs;
@@ -40,6 +42,36 @@ public sealed partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<TrafficMode> TrafficModes { get; } = Enum.GetValues<TrafficMode>();
     public IReadOnlyList<string> LogLevels { get; } = ["debug", "info", "warning", "error", "none"];
     public IReadOnlyList<string> Themes { get; } = ["system", "dark", "light"];
+
+    /// <summary>Language names are shown in their own language, never translated.</summary>
+    public IReadOnlyList<LanguageOption> Languages =>
+    [
+        new("system", L.T("Lang_System")),
+        new("en", "English"),
+        new("ru", "Русский"),
+    ];
+
+    public LanguageOption Language
+    {
+        get => Languages.FirstOrDefault(l => l.Value == S.Language) ?? Languages[0];
+        set
+        {
+            if (value is null || S.Language == value.Value) return;
+            S.Language = value.Value;
+            Localizer.Instance.Apply(value.Value);
+            _ = _services.SaveSettingsAsync();
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Re-read every computed string after the language changed.</summary>
+    public void OnLanguageChanged()
+    {
+        OnPropertyChanged(string.Empty);
+        RefreshEngineStatus();
+        RefreshPlugins();
+        RefreshAdvice();
+    }
     public IReadOnlyList<string> TunStacks { get; } = ["system", "gvisor", "mixed"];
 
     public EngineKind Engine
@@ -276,15 +308,15 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         get
         {
-            if (Advice.Count == 0) return "No problems found.";
+            if (Advice.Count == 0) return L.T("NoProblems");
             var critical = Advice.Count(a => a.Severity == AdviceSeverity.Critical);
             var warnings = Advice.Count(a => a.Severity == AdviceSeverity.Warning);
 
             return critical > 0
-                ? $"{critical} serious issue(s), {warnings} warning(s)"
+                ? L.F("SeriousAndWarnings", critical, warnings)
                 : warnings > 0
-                    ? $"{warnings} warning(s)"
-                    : $"{Advice.Count} suggestion(s)";
+                    ? L.F("WarningsCount", warnings)
+                    : L.F("Suggestions", Advice.Count);
         }
     }
 
@@ -301,9 +333,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         if (applied.Count == 0)
         {
-            _dialogs.ShowInfo("Optimise settings",
-                "Nothing left to fix automatically. Anything still listed needs a decision "
-                + "only you can make, such as changing a server's cipher.");
+            _dialogs.ShowInfo(L.T("Dlg_Optimise"), L.T("NothingLeftToFix"));
             return;
         }
 
@@ -313,8 +343,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         RefreshAdvice();
         OnPropertyChanged(string.Empty);
 
-        _dialogs.ShowInfo("Optimise settings",
-            "Applied:" + Environment.NewLine + string.Join(Environment.NewLine,
+        _dialogs.ShowInfo(L.T("Dlg_Optimise"),
+            L.T("Applied") + Environment.NewLine + string.Join(Environment.NewLine,
                 applied.Select(a => "  - " + a)));
     }
 
@@ -332,7 +362,7 @@ public sealed partial class SettingsViewModel : ObservableObject
                 p.Descriptor.Id,
                 string.Join(", ", p.Descriptor.Schemes.Select(s => s + "://")),
                 DescribeEngines(p.Descriptor.Engines),
-                p.IsBuiltin ? "built-in" : p.Source,
+                p.IsBuiltin ? L.T("built_in") : p.Source,
                 null))
             .ToList();
 
@@ -347,37 +377,51 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// checksum the release publishes before anything is written next to the app.
     /// </summary>
     [RelayCommand]
-    private async Task InstallEngineAsync(EngineRowViewModel? row)
+    private Task InstallEngineAsync(EngineRowViewModel? row) => InstallRowAsync(row);
+
+    /// <summary>Install a core by kind; used by the first-run prompt and the Servers banner.</summary>
+    public Task<bool> InstallEngineAsync(EngineKind kind)
     {
-        if (row is null || row.IsBusy) return;
+        var row = EngineRows.FirstOrDefault(r => r.Kind == kind) ?? EngineRowViewModel.Create(kind, kind == S.Engine);
+        return InstallRowAsync(row);
+    }
+
+    private async Task<bool> InstallRowAsync(EngineRowViewModel? row)
+    {
+        if (row is null || row.IsBusy) return false;
 
         // A running core holds its executable locked, and swapping it under a live
         // tunnel is not something to do silently.
         if (_services.Supervisor.Current.State != LinkState.Idle && row.Kind == S.Engine)
         {
-            if (!_dialogs.Confirm("Disconnect to update?",
-                    $"{row.DisplayName} is in use by the current connection. Disconnect and replace it?"))
-                return;
+            if (!_dialogs.Confirm(L.T("Dlg_DisconnectToUpdate"), L.F("DisconnectToUpdateBody", row.DisplayName)))
+                return false;
             await _services.Supervisor.DisconnectAsync();
         }
 
         row.IsBusy = true;
-        row.Progress = "Starting...";
+        row.Progress = L.T("Starting");
+        CoreInstallProgress = L.T("Starting");
         try
         {
-            var progress = new Progress<string>(text => row.Progress = text);
+            var progress = new Progress<string>(text => row.Progress = CoreInstallProgress = text);
             var result = await _services.Downloader.InstallAsync(row.Kind, progress);
 
-            if (result.Succeeded) _dialogs.ShowInfo("Core installed", result.Message);
-            else _dialogs.ShowError("Could not install the core", result.Message);
+            if (result.Succeeded) _dialogs.ShowInfo(L.T("Dlg_CoreInstalled"), result.Message);
+            else _dialogs.ShowError(L.T("Dlg_CoreInstallFailed"), result.Message);
+            return result.Succeeded;
         }
         finally
         {
             row.IsBusy = false;
             row.Progress = null;
+            CoreInstallProgress = null;
             RefreshEngineStatus();
         }
     }
+
+    /// <summary>Progress line shared with the Servers page banner while a core downloads.</summary>
+    [ObservableProperty] private string? _coreInstallProgress;
 
     /// <summary>
     /// Open the upstream releases page for a manual install — the way to go when GitHub
@@ -401,15 +445,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
         {
-            _dialogs.ShowInfo("Download the core", url);
+            _dialogs.ShowInfo(L.T("Dlg_DownloadCore"), url);
             return;
         }
 
-        _dialogs.ShowInfo(
-            "Install the core",
-            $"Download the Windows amd64 archive, then copy the executable into:{Environment.NewLine}{Environment.NewLine}"
-            + $"{folder}{Environment.NewLine}{Environment.NewLine}"
-            + "Then press \"Re-check engines\".");
+        _dialogs.ShowInfo(L.T("Dlg_InstallCore"), L.F("InstallCoreBody", folder).ReplaceLineEndings());
 
         OpenInExplorer(folder);
     }
@@ -437,15 +477,14 @@ public sealed partial class SettingsViewModel : ObservableObject
         SocksPort = PortProbe.FindFree(S.SocksPort);
         HttpPort = PortProbe.FindFree(SocksPort + 1);
         ApiPort = PortProbe.FindFree(HttpPort + 1);
-        _dialogs.ShowInfo("Ports updated",
-            $"SOCKS {SocksPort}, HTTP {HttpPort}, API {ApiPort}. Reconnect to apply.");
+        _dialogs.ShowInfo(L.T("Dlg_PortsUpdated"), L.F("PortsUpdatedBody", SocksPort, HttpPort, ApiPort));
     }
 
     [RelayCommand]
     private void ClearSystemProxy()
     {
         SystemProxy.Disable();
-        _dialogs.ShowInfo("System proxy", "The Windows proxy settings were restored.");
+        _dialogs.ShowInfo(L.T("Dlg_SystemProxy"), L.T("ProxyRestored"));
     }
 
     // -------------------------------------------------------------- helpers
@@ -479,6 +518,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
             if (key is null) return;
+
+            // The entry from before the rename would launch an executable that no longer exists.
+            key.DeleteValue(LegacyRunValueName, throwOnMissingValue: false);
 
             if (enabled)
             {
@@ -518,5 +560,7 @@ public sealed record PluginRowViewModel(
     string? Error)
 {
     public bool HasError => Error is not null;
-    public string StatusText => Error ?? "loaded";
+    public string StatusText => Error ?? L.T("Plugin_Loaded");
 }
+
+public sealed record LanguageOption(string Value, string Label);

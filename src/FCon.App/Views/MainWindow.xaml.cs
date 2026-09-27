@@ -93,9 +93,14 @@ public partial class MainWindow : Window
     {
         Loaded -= OnLoaded;
 
+        // First start, or a core that went missing: say so and offer the download before
+        // anything tries to connect. Nothing else in the app works without one.
+        var haveCore = await _vm.EnsureCoreAsync(ask: true);
+
         // Through the supervisor, not the engine: the automatic start must get the same
         // verification, monitoring and failover as a click on Connect.
-        if (_services.Settings.AutoStartLastServer
+        if (haveCore
+            && _services.Settings.AutoStartLastServer
             && _services.Settings.ActiveNodeId is { } id
             && _services.Profiles.FindNode(id) is { } node)
         {

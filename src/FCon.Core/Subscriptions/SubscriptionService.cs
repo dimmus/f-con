@@ -26,7 +26,7 @@ public sealed class SubscriptionService(
     Func<AppSettings> settingsAccessor)
 {
     /// <summary>Providers commonly gate the response format on a recognised client UA.</summary>
-    public const string DefaultUserAgent = "FCon/1.0 (Windows)";
+    public const string DefaultUserAgent = "KVN/1.2 (Windows)";
 
     public async Task<SubscriptionUpdateResult> UpdateAsync(
         Subscription subscription,

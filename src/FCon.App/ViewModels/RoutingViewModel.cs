@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FCon.App.Services;
 using FCon.Core.Config;
+using FCon.Core.Localization;
 
 namespace FCon.App.ViewModels;
 
@@ -86,7 +87,7 @@ public sealed partial class RoutingViewModel : ObservableObject
     [RelayCommand]
     private void AddRule()
     {
-        var rule = new RoutingRule { Name = "New rule", Action = RuleAction.Direct };
+        var rule = new RoutingRule { Name = L.T("NewRule"), Action = RuleAction.Direct };
         Profile.Rules.Add(rule);
         Persist();
         Reload();
@@ -137,7 +138,7 @@ public sealed partial class RoutingViewModel : ObservableObject
     [RelayCommand]
     private void ResetToDefaults()
     {
-        if (!_dialogs.Confirm("Reset routing", "Discard all rules and restore the defaults?")) return;
+        if (!_dialogs.Confirm(L.T("Dlg_ResetRouting"), L.T("ResetRoutingBody"))) return;
 
         var defaults = RoutingProfile.CreateDefault();
         Profile.Rules.Clear();
@@ -218,12 +219,12 @@ public sealed partial class RuleRowViewModel(RoutingRule model, Action persist) 
         get
         {
             var parts = new List<string>();
-            if (Model.Domains.Count > 0) parts.Add($"{Model.Domains.Count} domain(s)");
-            if (Model.Ips.Count > 0) parts.Add($"{Model.Ips.Count} IP rule(s)");
-            if (Model.Ports.Count > 0) parts.Add($"ports {string.Join(",", Model.Ports)}");
-            if (Model.Processes.Count > 0) parts.Add($"{Model.Processes.Count} process(es)");
+            if (Model.Domains.Count > 0) parts.Add(L.F("DomainsCount", Model.Domains.Count));
+            if (Model.Ips.Count > 0) parts.Add(L.F("IpRulesCount", Model.Ips.Count));
+            if (Model.Ports.Count > 0) parts.Add(L.F("PortsList", string.Join(",", Model.Ports)));
+            if (Model.Processes.Count > 0) parts.Add(L.F("ProcessesCount", Model.Processes.Count));
             if (Model.Protocols.Count > 0) parts.Add(string.Join(",", Model.Protocols));
-            return parts.Count == 0 ? "matches nothing yet" : string.Join(" · ", parts);
+            return parts.Count == 0 ? L.T("MatchesNothing") : string.Join(" · ", parts);
         }
     }
 

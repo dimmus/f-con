@@ -4,6 +4,7 @@ using FCon.App.Views;
 using FCon.Core;
 using FCon.Core.Engine;
 using FCon.Core.Net;
+using FCon.Core.Localization;
 
 namespace FCon.App;
 
@@ -31,6 +32,7 @@ public partial class App : Application
         DispatcherUnhandledException += OnDispatcherUnhandledException;
 
         _services = new AppServices();
+        Localizer.Instance.Apply(_services.Settings.Language);
         ThemeManager.Apply(_services.Settings.Theme);
 
         // A previous run may have died with the system proxy still pointed at a dead port.
@@ -83,7 +85,7 @@ public partial class App : Application
         {
             MessageWindow.Show(
                 MainWindow,
-                "FCon hit an unexpected error",
+                L.T("Crash"),
                 args.Exception.ToString(),
                 MessageKind.Error);
         }

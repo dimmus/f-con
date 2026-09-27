@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using FCon.Abstractions.Model;
 using FCon.Abstractions.Plugins;
+using FCon.Core.Localization;
 
 namespace FCon.App.ViewModels;
 
@@ -65,7 +66,7 @@ public sealed partial class ServerRowViewModel : ObservableObject
     public string LatencyText => Node.LatencyMs switch
     {
         null => "",
-        < 0 => "timeout",
+        < 0 => L.T("Row_Timeout"),
         var ms => $"{ms} ms",
     };
 
@@ -109,11 +110,11 @@ public sealed partial class ServerRowViewModel : ObservableObject
         get
         {
             if (Quality is not { } q) return "";
-            if (q.IsQuarantined(DateTimeOffset.Now)) return "resting";
-            if (!q.Verified) return q.Failures > 0 ? $"{q.Failures} fail" : "untried";
+            if (q.IsQuarantined(DateTimeOffset.Now)) return L.T("Row_Resting");
+            if (!q.Verified) return q.Failures > 0 ? L.F("Row_Fail", q.Failures) : L.T("Row_Untried");
 
             var reliability = (int)Math.Round(q.Reliability * 100);
-            return q.Failures == 0 ? "reliable" : $"{reliability}%";
+            return q.Failures == 0 ? L.T("Row_Reliable") : $"{reliability}%";
         }
     }
 
@@ -131,14 +132,14 @@ public sealed partial class ServerRowViewModel : ObservableObject
         get
         {
             if (Quality is not { } q)
-                return "No record yet. Filled in once this server has actually carried traffic.";
+                return L.T("Row_NoRecord");
 
-            var parts = new List<string> { $"{q.Successes} ok, {q.Failures} failed" };
+            var parts = new List<string> { L.F("Row_OkFailed", q.Successes, q.Failures) };
 
-            if (q.LatencyMs is { } latency) parts.Add($"{latency:0} ms typical");
-            if (q.JitterMs is { } jitter) parts.Add($"{jitter:0} ms jitter");
-            if (q.IsQuarantined(DateTimeOffset.Now)) parts.Add("resting after repeated failures");
-            if (q.LastError is { Length: > 0 } error) parts.Add("last error: " + error);
+            if (q.LatencyMs is { } latency) parts.Add(L.F("Row_Typical", latency.ToString("0")));
+            if (q.JitterMs is { } jitter) parts.Add(L.F("Row_Jitter", jitter.ToString("0")));
+            if (q.IsQuarantined(DateTimeOffset.Now)) parts.Add(L.T("Row_RestingAfter"));
+            if (q.LastError is { Length: > 0 } error) parts.Add(L.F("Row_LastError", error));
 
             return string.Join("  ·  ", parts);
         }

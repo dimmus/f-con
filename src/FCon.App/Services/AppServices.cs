@@ -21,6 +21,7 @@ public sealed class AppServices : IAsyncDisposable
 
     public AppServices()
     {
+        AppPaths.MigrateLegacyData();
         AppPaths.EnsureCreated();
 
         _settingsStore = new JsonStore<AppSettings>(AppPaths.SettingsFile, () => new AppSettings());

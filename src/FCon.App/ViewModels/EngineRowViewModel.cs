@@ -3,6 +3,7 @@ using FCon.Abstractions.Plugins;
 using FCon.Abstractions.Util;
 using FCon.Core;
 using FCon.Core.Engine;
+using FCon.Core.Localization;
 
 namespace FCon.App.ViewModels;
 
@@ -44,21 +45,21 @@ public sealed partial class EngineRowViewModel : ObservableObject
     public string Grade => !IsInstalled || IsTooOld ? "bad" : IsPreRelease ? "warn" : "good";
 
     public string StatusLabel => !IsInstalled
-        ? "Not installed"
-        : IsTooOld ? "Too old"
-        : IsPreRelease ? "Pre-release" : "Ready";
+        ? L.T("Engine_NotInstalled")
+        : IsTooOld ? L.T("Engine_TooOld")
+        : IsPreRelease ? L.T("Engine_PreRelease") : L.T("Engine_Ready");
 
     /// <summary>The one line that tells the user what, if anything, to do.</summary>
     public string Detail => !IsInstalled
-        ? $"Download the latest stable release, or put {EngineLocator.ExecutableName(Kind)} in {Location}"
+        ? L.F("Engine_DetailNotInstalled", EngineLocator.ExecutableName(Kind), Location)
         : IsTooOld
-            ? $"{Version} is older than {SingBoxConfigBuilder.MinimumVersion}; update it. {Location}"
+            ? L.F("Engine_DetailTooOld", Version, SingBoxConfigBuilder.MinimumVersion, Location)
             : IsPreRelease
-                ? $"{Version} is a pre-release; a stable build is recommended. {Location}"
+                ? L.F("Engine_DetailPreRelease", Version, Location)
                 : $"{Version} - {Location}";
 
     /// <summary>Label for the download button: a fresh install or a replacement.</summary>
-    public string InstallLabel => IsInstalled ? "Update" : "Download";
+    public string InstallLabel => IsInstalled ? L.T("Engine_Update") : L.T("Engine_Download");
 
     /// <summary>Parameter for the manual Get-engine command.</summary>
     public string InstallKey => Kind == EngineKind.Xray ? "xray" : "singbox";

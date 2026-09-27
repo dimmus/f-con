@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-    Generates the FCon application icon as a multi-resolution .ico.
+    Generates the KVN application icon as a multi-resolution .ico.
 
 .DESCRIPTION
     The mark matches the badge in the app's navigation rail: an accent-blue rounded
-    square with a white F. Each size is rendered separately rather than scaled from
+    square with a white K. Each size is rendered separately rather than scaled from
     one bitmap, so the 16px entry stays legible instead of turning to mush.
 
     Sizes below 256 are written as uncompressed 32bpp DIBs and only 256 uses PNG.
@@ -51,7 +51,7 @@ function New-Mark([int]$s) {
     $fmt.LineAlignment = 'Center'
     $white = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
     $rect = New-Object System.Drawing.RectangleF($pad, $pad, $side, $side)
-    $g.DrawString('F', $font, $white, $rect, $fmt)
+    $g.DrawString('K', $font, $white, $rect, $fmt)
 
     $brush.Dispose(); $white.Dispose(); $font.Dispose(); $fmt.Dispose()
     $path.Dispose(); $g.Dispose()

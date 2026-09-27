@@ -1,4 +1,4 @@
-# Builds, tests and packages FCon, then attaches the zips to the GitHub Release for
+# Builds, tests and packages KVN, then attaches the zips to the GitHub Release for
 # the pushed tag. Push "v1.2.0" and a release appears; the tag must match the version
 # in FCon.App.csproj or the job stops before building anything.
 #
@@ -74,14 +74,14 @@ jobs:
           $tag = '${{ github.ref_name }}'
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "FCon $tag" --generate-notes
+            gh release create $tag --title "KVN $tag" --generate-notes
           }
           gh release upload $tag (Get-ChildItem dist/*.zip, dist/SHA256SUMS.txt).FullName --clobber
 
       - name: Keep the packages as a workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FCon-packages
+          name: KVN-packages
           path: |
             dist/*.zip
             dist/SHA256SUMS.txt
