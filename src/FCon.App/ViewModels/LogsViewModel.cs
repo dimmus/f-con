@@ -87,7 +87,7 @@ public sealed partial class LogsViewModel : ObservableObject
     [RelayCommand]
     private async Task SaveAsync()
     {
-        var path = Path.Combine(AppPaths.LogDirectory, $"fcon-{DateTime.Now:yyyyMMdd-HHmmss}.log");
+        var path = Path.Combine(AppPaths.LogDirectory, $"kvn-{DateTime.Now:yyyyMMdd-HHmmss}.log");
         Directory.CreateDirectory(AppPaths.LogDirectory);
         await File.WriteAllLinesAsync(path, Lines.Select(l => l.Text));
 

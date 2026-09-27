@@ -4,6 +4,7 @@ using FCon.App.Services;
 using FCon.App.ViewModels;
 using FCon.Core.Import;
 using FCon.Core.Plugins;
+using FCon.Core.Localization;
 
 namespace FCon.App.Views;
 
@@ -28,7 +29,7 @@ public partial class NodeEditorWindow : Window
     {
         if (!_vm.TrySave())
         {
-            MessageWindow.Show(this, "Fix these first", _vm.ValidationText, MessageKind.Warning);
+            MessageWindow.Show(this, L.T("Editor_FixFirst"), _vm.ValidationText, MessageKind.Warning);
             return;
         }
         DialogResult = true;

@@ -1,17 +1,17 @@
 ﻿<#
 .SYNOPSIS
-    Builds the FCon release and portable packages.
+    Builds the KVN release and portable packages.
 
 .DESCRIPTION
     Produces two win-x64 packages under dist/:
 
-      FCon-<version>-win-x64-portable.zip
+      KVN-<version>-win-x64-portable.zip
           Self-contained single file. No .NET install needed. Keeps its settings in
           a data/ folder next to the executable, so it leaves nothing behind.
 
-      FCon-<version>-win-x64.zip
+      KVN-<version>-win-x64.zip
           Framework-dependent. Much smaller, needs the .NET Desktop Runtime.
-          Settings live in %APPDATA%\FCon.
+          Settings live in %APPDATA%\KVN.
 
     Proxy cores are never bundled: they are separate projects under their own
     licences, and users should get them from upstream. Both packages ship the
@@ -41,17 +41,17 @@ $staging = Join-Path $dist 'staging'
 $version = ([xml](Get-Content $app)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
 if (-not $version) { $version = '1.0.0' }
 
-Write-Host "FCon $version -> $Runtime ($Configuration)" -ForegroundColor Cyan
+Write-Host "KVN $version -> $Runtime ($Configuration)" -ForegroundColor Cyan
 
-# Only an FCon launched from this repo locks files we are about to write. An installed
+# Only a KVN launched from this repo locks files we are about to write. An installed
 # copy running elsewhere must keep running: on a machine where nuget.org is blocked, its
 # proxy is how the restore reaches the runtime pack at all, so stopping it here would
 # guarantee the downgraded build this check was never meant to cause.
-$blocking = Get-Process FCon -ErrorAction SilentlyContinue |
+$blocking = Get-Process KVN -ErrorAction SilentlyContinue |
     Where-Object { $_.Path -and $_.Path.StartsWith($repo, [StringComparison]::OrdinalIgnoreCase) }
 
 if ($blocking) {
-    throw "FCon is running from $($blocking[0].Path); close it before publishing (it locks its own binaries)."
+    throw "KVN is running from $($blocking[0].Path); close it before publishing (it locks its own binaries)."
 }
 
 # A previous package may have been run in place, leaving a locked runtime file
@@ -87,7 +87,7 @@ function Test-NuGetReachable {
     catch { return $false }
 }
 
-# Local HTTP proxies worth trying, most specific first: whatever FCon itself is
+# Local HTTP proxies worth trying, most specific first: whatever KVN itself is
 # configured to listen on, then the defaults other clients use. Building a
 # circumvention tool on a machine that needs one is the normal case here, not an
 # edge case, so this is the difference between a real package and a downgraded one.
@@ -95,7 +95,9 @@ function Get-ProxyCandidates {
     $ports = [System.Collections.Generic.List[int]]::new()
 
     $settingsFiles = @(
+        (Join-Path $env:APPDATA 'KVN/settings.json')
         (Join-Path $env:APPDATA 'FCon/settings.json')
+        (Join-Path $env:USERPROFILE 'Documents/KVN-*-win-x64-portable/data/settings.json')
         (Join-Path $env:USERPROFILE 'Documents/FCon-*-win-x64-portable/data/settings.json')
     )
     foreach ($pattern in $settingsFiles) {
@@ -147,7 +149,7 @@ if (-not $Offline) {
                 Write-Host "No local proxy worked (tried: $($candidates -join ', '))." -ForegroundColor Yellow
             }
             else {
-                Write-Host 'No local proxy is listening. Connect FCon or Happ first,' -ForegroundColor Yellow
+                Write-Host 'No local proxy is listening. Connect KVN or Happ first,' -ForegroundColor Yellow
                 Write-Host 'or pass -Proxy http://127.0.0.1:<port>.' -ForegroundColor Yellow
             }
             Write-Host 'Falling back to the local package cache.' -ForegroundColor Yellow
@@ -246,10 +248,10 @@ function New-Package {
 
     if ($Portable) {
         Set-Content -Path (Join-Path $out 'portable.txt') -Encoding UTF8 -Value @(
-            'This file puts FCon in portable mode.'
+            'This file puts KVN in portable mode.'
             ''
-            'Settings, logs and profiles are kept in the data\ folder beside FCon.exe'
-            'instead of %APPDATA%\FCon. Delete this file to use the normal location.'
+            'Settings, logs and profiles are kept in the data\ folder beside KVN.exe'
+            'instead of %APPDATA%\KVN. Delete this file to use the normal location.'
             ''
             'This build carries its own .NET runtime; nothing needs installing.'
         )
@@ -271,15 +273,15 @@ function New-Package {
 # out byte-for-byte the size of the other zip, which is how the downgrade went
 # unnoticed. Skip it instead: a missing package is honest, a mislabelled one is not.
 if ($canSelfContain) {
-    New-Package -Name "FCon-$version-$Runtime-portable" -SelfContained $true -Portable $true
+    New-Package -Name "KVN-$version-$Runtime-portable" -SelfContained $true -Portable $true
 }
 else {
-    $stale = Join-Path $dist "FCon-$version-$Runtime-portable.zip"
+    $stale = Join-Path $dist "KVN-$version-$Runtime-portable.zip"
     if (Test-Path $stale) { Remove-Item $stale -Force }
     Write-Host '  portable package skipped (needs nuget.org).' -ForegroundColor Yellow
 }
 
-New-Package -Name "FCon-$version-$Runtime" -SelfContained $false -Portable $false
+New-Package -Name "KVN-$version-$Runtime" -SelfContained $false -Portable $false
 
 Write-Host ''
 Write-Host 'Done.' -ForegroundColor Green

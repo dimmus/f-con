@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using FCon.App.Views;
 using FCon.Core.Engine;
+using FCon.Core.Localization;
 
 namespace FCon.App.Services;
 
@@ -27,14 +28,14 @@ public sealed partial class TrayIcon : IDisposable
         // A WPF menu rather than a WinForms ContextMenuStrip: the strip renders with its
         // own light chrome and ignores the app theme entirely, which looked wrong hanging
         // off a dark window. This one picks up the same styles as every other menu.
-        _statusItem = new System.Windows.Controls.MenuItem { Header = "Disconnected", IsEnabled = false };
-        _connectItem = new System.Windows.Controls.MenuItem { Header = "Connect" };
+        _statusItem = new System.Windows.Controls.MenuItem { Header = L.T("Status_Disconnected"), IsEnabled = false };
+        _connectItem = new System.Windows.Controls.MenuItem { Header = L.T("Connect") };
         _connectItem.Click += (_, _) => Toggle();
 
-        var showItem = new System.Windows.Controls.MenuItem { Header = "Show window" };
+        var showItem = new System.Windows.Controls.MenuItem { Header = L.T("Tray_ShowWindow") };
         showItem.Click += (_, _) => window.RestoreFromTray();
 
-        var exitItem = new System.Windows.Controls.MenuItem { Header = "Exit" };
+        var exitItem = new System.Windows.Controls.MenuItem { Header = L.T("Tray_Exit") };
         exitItem.Click += (_, _) => window.CloseForReal();
 
         _menu = new System.Windows.Controls.ContextMenu();
@@ -47,7 +48,7 @@ public sealed partial class TrayIcon : IDisposable
 
         _icon = new NotifyIcon
         {
-            Text = "FCon",
+            Text = "KVN",
             Visible = true,
         };
         _icon.MouseUp += OnIconMouseUp;
@@ -55,6 +56,12 @@ public sealed partial class TrayIcon : IDisposable
 
         UpdateIcon(ConnectionState.Disconnected);
         services.Engine.StatusChanged += OnStatusChanged;
+        Localizer.Instance.Changed += () => _window.Dispatcher.Invoke(() =>
+        {
+            showItem.Header = L.T("Tray_ShowWindow");
+            exitItem.Header = L.T("Tray_Exit");
+            OnStatusChanged(new ConnectionStatus(services.Engine.State, services.Engine.ActiveNode, null, []));
+        });
     }
 
     private void OnIconMouseUp(object? sender, MouseEventArgs e)
@@ -90,17 +97,17 @@ public sealed partial class TrayIcon : IDisposable
             var name = status.Node?.DisplayName;
             _statusItem.Header = status.State switch
             {
-                ConnectionState.Connected => $"Connected — {name}",
-                ConnectionState.Connecting => "Connecting...",
-                ConnectionState.Disconnecting => "Stopping...",
-                ConnectionState.Faulted => "Failed",
-                _ => "Disconnected",
+                ConnectionState.Connected => L.F("Tray_ConnectedTo", name),
+                ConnectionState.Connecting => L.T("Tray_Connecting"),
+                ConnectionState.Disconnecting => L.T("Tray_Stopping"),
+                ConnectionState.Faulted => L.T("Status_Failed"),
+                _ => L.T("Status_Disconnected"),
             };
 
-            _connectItem.Header = status.State == ConnectionState.Connected ? "Disconnect" : "Connect";
+            _connectItem.Header = status.State == ConnectionState.Connected ? L.T("Btn_Disconnect") : L.T("Connect");
 
             // Tray tooltips are capped at 63 characters by the shell.
-            var tooltip = $"FCon — {_statusItem.Header}";
+            var tooltip = $"KVN — {_statusItem.Header}";
             _icon.Text = tooltip.Length > 62 ? tooltip[..62] : tooltip;
         });
     }

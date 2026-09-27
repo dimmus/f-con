@@ -30,7 +30,7 @@ $SiblingPorts = @(10809, 10810)
 $CoreNames = @(
     'sing-box', 'xray', 'v2ray', 'mihomo', 'clash', 'clash-verge', 'Clash for Windows',
     'nekoray', 'nekobox', 'hiddify', 'Hiddify', 'tun2proxy-bin', 'tun2socks',
-    'AmneziaVPN', 'warp-svc', 'FCon'
+    'AmneziaVPN', 'warp-svc', 'FCon', 'KVN'
 )
 
 $Checks = New-Object System.Collections.Generic.List[object]

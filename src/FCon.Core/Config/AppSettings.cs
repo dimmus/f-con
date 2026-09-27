@@ -138,6 +138,9 @@ public sealed record AppSettings
     public Guid? ActiveNodeId { get; set; }
     public string Theme { get; set; } = "system";
 
+    /// <summary>"system" follows Windows; otherwise "en" or "ru".</summary>
+    public string Language { get; set; } = "system";
+
     [JsonIgnore]
     public string ListenAddress => AllowLan ? "0.0.0.0" : "127.0.0.1";
 }

@@ -19,7 +19,7 @@ public sealed record EngineDownloadResult(bool Succeeded, string Message, string
 /// </summary>
 public sealed partial class EngineDownloader(Func<int?> proxyPort)
 {
-    private const string UserAgent = "FCon/1.0 (+https://github.com)";
+    private const string UserAgent = "KVN/1.2 (+https://github.com)";
 
     public static string ReleasesPage(EngineKind kind) => kind == EngineKind.Xray
         ? "https://github.com/XTLS/Xray-core/releases"

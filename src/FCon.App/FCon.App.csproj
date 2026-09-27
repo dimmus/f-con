@@ -7,13 +7,13 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <AssemblyName>FCon</AssemblyName>
+    <AssemblyName>KVN</AssemblyName>
     <RootNamespace>FCon.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\fcon.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <Version>1.2.0</Version>
-    <Product>FCon</Product>
+    <Product>KVN</Product>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!--
       WFO0003 tells WinForms apps to configure DPI through Application.SetHighDpiMode.

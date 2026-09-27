@@ -8,6 +8,7 @@ using FCon.Core.Config;
 using FCon.Core.Engine;
 using FCon.Core.Health;
 using FCon.Core.Net;
+using FCon.Core.Localization;
 
 namespace FCon.App.ViewModels;
 
@@ -22,7 +23,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private ObservableCollection<ServerRowViewModel> _servers = [];
     [ObservableProperty] private ServerRowViewModel? _selectedServer;
     [ObservableProperty] private string _searchText = "";
-    [ObservableProperty] private string _statusText = "Disconnected";
+    [ObservableProperty] private string _statusText = L.T("Status_Disconnected");
     [ObservableProperty] private string? _statusDetail;
     [ObservableProperty] private LinkState _state = LinkState.Idle;
     [ObservableProperty] private int? _linkLatencyMs;
@@ -50,8 +51,31 @@ public sealed partial class MainViewModel : ObservableObject
             OnPropertyChanged(nameof(TrafficTotalText));
         });
 
+        // XAML follows the localizer on its own; computed strings need a nudge.
+        Localizer.Instance.Changed += () => Application.Current.Dispatcher.Invoke(OnLanguageChanged);
+
         Refresh();
     }
+
+    private void OnLanguageChanged()
+    {
+        OnPropertyChanged(string.Empty);
+        StatusText = StatusFor(State);
+        Refresh();
+        Subscriptions.Refresh();
+        Settings.OnLanguageChanged();
+    }
+
+    private static string StatusFor(LinkState state) => state switch
+    {
+        LinkState.Healthy => L.T("Status_Connected"),
+        LinkState.Degraded => L.T("Status_Unstable"),
+        LinkState.Connecting => L.T("Status_Connecting"),
+        LinkState.Verifying => L.T("Status_Verifying"),
+        LinkState.Recovering => L.T("Status_Recovering"),
+        LinkState.Failed => L.T("Status_Failed"),
+        _ => L.T("Status_Disconnected"),
+    };
 
     public SubscriptionsViewModel Subscriptions { get; }
     public RoutingViewModel Routing { get; }
@@ -74,22 +98,22 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public string ConnectButtonText => State switch
     {
-        LinkState.Healthy or LinkState.Degraded => "Disconnect",
-        LinkState.Connecting => "Stop connecting",
-        LinkState.Verifying => "Stop verifying",
-        LinkState.Recovering => "Stop reconnecting",
-        _ => "Connect",
+        LinkState.Healthy or LinkState.Degraded => L.T("Btn_Disconnect"),
+        LinkState.Connecting => L.T("Btn_StopConnecting"),
+        LinkState.Verifying => L.T("Btn_StopVerifying"),
+        LinkState.Recovering => L.T("Btn_StopReconnecting"),
+        _ => L.T("Connect"),
     };
 
     public string LinkQualityText => State switch
     {
-        LinkState.Healthy => LinkLatencyMs is { } ms ? $"Healthy · {ms} ms" : "Healthy",
-        LinkState.Degraded => "Unstable",
-        LinkState.Verifying => "Verifying",
-        LinkState.Recovering => "Recovering",
-        LinkState.Failed => "Failed",
-        LinkState.Connecting => "Connecting",
-        _ => "Not connected",
+        LinkState.Healthy => LinkLatencyMs is { } ms ? L.F("Quality_HealthyMs", ms) : L.T("Quality_Healthy"),
+        LinkState.Degraded => L.T("Status_Unstable"),
+        LinkState.Verifying => L.T("Status_Verifying"),
+        LinkState.Recovering => L.T("Status_Recovering"),
+        LinkState.Failed => L.T("Status_Failed"),
+        LinkState.Connecting => L.T("Status_Connecting"),
+        _ => L.T("Quality_NotConnected"),
     };
 
     public string LinkGrade => State switch
@@ -100,7 +124,7 @@ public sealed partial class MainViewModel : ObservableObject
         _ => "idle",
     };
 
-    public string ActiveServerName => _services.Engine.ActiveNode?.DisplayName ?? "No server selected";
+    public string ActiveServerName => _services.Engine.ActiveNode?.DisplayName ?? L.T("NoServerSelected");
 
     /// <summary>Country and address the traffic actually exits from, once verified.</summary>
     public string ExitText
@@ -109,7 +133,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             if (!IsConnected) return "";
             var exit = _services.Supervisor.Current.Exit;
-            return exit is null ? "exit unknown" : exit.Describe();
+            return exit is null ? L.T("ExitUnknown") : exit.Describe();
         }
     }
 
@@ -121,7 +145,7 @@ public sealed partial class MainViewModel : ObservableObject
         get
         {
             if (!IsConnected) return "";
-            if (!_services.Traffic.Available) return "counters need sing-box";
+            if (!_services.Traffic.Available) return L.T("CountersNeedSingBox");
 
             var s = _services.Traffic.Current;
             return $"↓ {TrafficSample.FormatRate(s.DownloadBytesPerSecond)}"
@@ -136,8 +160,8 @@ public sealed partial class MainViewModel : ObservableObject
         {
             if (!IsConnected || !_services.Traffic.Available) return "";
             var s = _services.Traffic.Current;
-            return $"{TrafficSample.FormatBytes(s.DownloadTotal + s.UploadTotal)} this session"
-                   + (s.Connections > 0 ? $" · {s.Connections} conn" : "");
+            return L.F("ThisSession", TrafficSample.FormatBytes(s.DownloadTotal + s.UploadTotal))
+                   + (s.Connections > 0 ? " · " + L.F("ConnCount", s.Connections) : "");
         }
     }
 
@@ -198,16 +222,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             State = snapshot.State;
             LinkLatencyMs = snapshot.LatencyMs;
-            StatusText = snapshot.State switch
-            {
-                LinkState.Healthy => "Connected",
-                LinkState.Degraded => "Unstable",
-                LinkState.Connecting => "Connecting",
-                LinkState.Verifying => "Verifying",
-                LinkState.Recovering => "Recovering",
-                LinkState.Failed => "Failed",
-                _ => "Disconnected",
-            };
+            StatusText = StatusFor(snapshot.State);
             StatusDetail = snapshot.Message;
 
             foreach (var row in _allRows) row.IsActive = row.Id == snapshot.Node?.Id;
@@ -264,7 +279,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (target is null)
         {
-            _dialogs.ShowInfo("No servers", "Add a server or import a subscription first.");
+            _dialogs.ShowInfo(L.T("Dlg_NoServers"), L.T("Dlg_NoServersBody"));
             return;
         }
 
@@ -284,7 +299,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (_allRows.Count == 0)
         {
-            _dialogs.ShowInfo("No servers", "Add a server or import a subscription first.");
+            _dialogs.ShowInfo(L.T("Dlg_NoServers"), L.T("Dlg_NoServersBody"));
             return;
         }
 
@@ -298,7 +313,7 @@ public sealed partial class MainViewModel : ObservableObject
         var issues = _services.Importer.Validate(target);
         if (issues.Count > 0)
         {
-            _dialogs.ShowError("This server is not usable",
+            _dialogs.ShowError(L.T("Dlg_NotUsable"),
                 string.Join(Environment.NewLine, issues));
             return;
         }
@@ -339,7 +354,7 @@ public sealed partial class MainViewModel : ObservableObject
             Protocol = "vless",
             Server = "",
             Port = 443,
-            Remark = "New server",
+            Remark = L.T("NewServer"),
         };
 
         if (_dialogs.EditNode(template, isNew: true) is { } created)
@@ -377,8 +392,8 @@ public sealed partial class MainViewModel : ObservableObject
         var ids = ResolveSelection(selection);
         if (ids.Count == 0) return;
 
-        var label = ids.Count == 1 ? "this server" : $"these {ids.Count} servers";
-        if (!_dialogs.Confirm("Delete servers", $"Remove {label} from the list?")) return;
+        var label = ids.Count == 1 ? L.T("Dlg_DeleteOne") : L.F("Dlg_DeleteMany", ids.Count);
+        if (!_dialogs.Confirm(L.T("Dlg_DeleteServers"), L.F("Dlg_DeleteBody", label))) return;
 
         _services.Profiles.RemoveNodes(ids);
     }
@@ -389,7 +404,7 @@ public sealed partial class MainViewModel : ObservableObject
         var text = SafeClipboardText();
         if (string.IsNullOrWhiteSpace(text))
         {
-            _dialogs.ShowInfo("Nothing to import", "The clipboard does not contain any text.");
+            _dialogs.ShowInfo(L.T("Dlg_NothingToImport"), L.T("Dlg_ClipboardEmpty"));
             return;
         }
         ImportText(text);
@@ -439,17 +454,17 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (!result.AnySucceeded)
         {
-            _dialogs.ShowError("Import failed", result.Errors.Count > 0
+            _dialogs.ShowError(L.T("Dlg_ImportFailed"), result.Errors.Count > 0
                 ? string.Join(Environment.NewLine, result.Errors.Take(10))
-                : "No recognisable server links were found.");
+                : L.T("Dlg_NoLinks"));
             return;
         }
 
         _services.Profiles.AddNodes(result.Nodes);
 
-        var message = $"Imported {result.Nodes.Count} server(s).";
+        var message = L.F("ImportedCount", result.Nodes.Count);
         if (result.Errors.Count > 0)
-            message += $"{Environment.NewLine}{Environment.NewLine}Skipped {result.Errors.Count}:"
+            message += $"{Environment.NewLine}{Environment.NewLine}" + L.F("SkippedCount", result.Errors.Count)
                        + Environment.NewLine
                        + string.Join(Environment.NewLine, result.Errors.Take(8));
 
@@ -462,7 +477,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        _dialogs.ShowInfo("Import complete", message);
+        _dialogs.ShowInfo(L.T("Dlg_ImportComplete"), message);
     }
 
     [RelayCommand]
@@ -486,11 +501,11 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             var config = _services.Engine.Generate(row.Node);
-            _dialogs.ShowConfig($"{_services.Settings.Engine} config — {row.Name}", config.ToJson());
+            _dialogs.ShowConfig(L.F("ConfigTitle", _services.Settings.Engine, row.Name), config.ToJson());
         }
         catch (InvalidOperationException ex)
         {
-            _dialogs.ShowError("Cannot generate configuration", ex.Message);
+            _dialogs.ShowError(L.T("Dlg_CannotGenerate"), ex.Message);
         }
     }
 
@@ -498,9 +513,9 @@ public sealed partial class MainViewModel : ObservableObject
     private void Deduplicate()
     {
         var removed = _services.Profiles.Deduplicate();
-        _dialogs.ShowInfo("Remove duplicates", removed == 0
-            ? "No duplicate servers were found."
-            : $"Removed {removed} duplicate server(s).");
+        _dialogs.ShowInfo(L.T("Dlg_RemoveDuplicates"), removed == 0
+            ? L.T("NoDuplicates")
+            : L.F("RemovedDuplicates", removed));
     }
 
     // ------------------------------------------------------------- testing
@@ -533,13 +548,13 @@ public sealed partial class MainViewModel : ObservableObject
 
         IsBusy = true;
         var done = 0;
-        BusyText = $"Testing 0/{nodes.Count}";
+        BusyText = L.F("Testing", 0, nodes.Count);
 
         var progress = new Progress<LatencyResult>(result =>
         {
             done++;
-            BusyText = $"Testing {done}/{nodes.Count}"
-                       + (result.Method == LatencyTester.MethodUrl ? " (real requests)" : " (handshake)");
+            BusyText = L.F("Testing", done, nodes.Count)
+                       + (result.Method == LatencyTester.MethodUrl ? L.T("TestingReal") : L.T("TestingHandshake"));
 
             var row = _allRows.FirstOrDefault(r => r.Id == result.NodeId);
             if (row is not null) row.Node = row.Node with { LatencyMs = result.Milliseconds };
@@ -595,12 +610,12 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (!IsConnected || _services.Engine.ActiveNode is not { } active)
         {
-            _dialogs.ShowInfo("Not connected", "Connect first to measure latency through the tunnel.");
+            _dialogs.ShowInfo(L.T("Dlg_NotConnected"), L.T("ConnectFirstLatency"));
             return;
         }
 
         IsBusy = true;
-        BusyText = "Measuring real delay...";
+        BusyText = L.T("MeasuringDelay");
         try
         {
             var result = await HealthProbe.CheckAsync(
@@ -611,8 +626,8 @@ public sealed partial class MainViewModel : ObservableObject
             if (result.Ok) _services.Quality.RecordLatency(active.Id, result.LatencyMs);
             RefreshQualityColumns();
 
-            _dialogs.ShowInfo("Real delay", result.Ok
-                ? $"{active.DisplayName}: {result.LatencyMs} ms through the tunnel."
+            _dialogs.ShowInfo(L.T("Real_delay"), result.Ok
+                ? L.F("RealDelayResult", active.DisplayName, result.LatencyMs)
                 : $"{active.DisplayName}: {result.Describe()}.");
         }
         finally
@@ -631,22 +646,21 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (!IsConnected || _services.Engine.ActiveNode is not { } active)
         {
-            _dialogs.ShowInfo("Not connected", "Connect first to measure speed.");
+            _dialogs.ShowInfo(L.T("Dlg_NotConnected"), L.T("ConnectFirstSpeed"));
             return;
         }
 
         IsBusy = true;
-        BusyText = "Measuring throughput...";
+        BusyText = L.T("MeasuringThroughput");
         try
         {
             var bytesPerSecond = await HealthProbe.MeasureThroughputAsync(
                 _services.Settings.HttpPort, _services.Settings.SpeedTestUrl);
 
             var mbits = bytesPerSecond * 8 / 1_000_000;
-            _dialogs.ShowInfo("Speed test", bytesPerSecond <= 0
-                ? $"{active.DisplayName}: no data came through."
-                : $"{active.DisplayName}: {mbits:0.0} Mbit/s down "
-                  + $"({bytesPerSecond / 1_048_576:0.0} MB/s).");
+            _dialogs.ShowInfo(L.T("Speed_test"), bytesPerSecond <= 0
+                ? L.F("NoDataCame", active.DisplayName)
+                : L.F("SpeedResult", active.DisplayName, mbits.ToString("0.0"), (bytesPerSecond / 1_048_576).ToString("0.0")));
         }
         finally
         {

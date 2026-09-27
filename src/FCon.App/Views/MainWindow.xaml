@@ -1,8 +1,8 @@
 ﻿<Window x:Class="FCon.App.Views.MainWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:loc="clr-namespace:FCon.App.Localization"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:v="clr-namespace:FCon.App.Views"
-        Title="FCon" Height="720" Width="1160" MinHeight="560" MinWidth="940"
+        Title="KVN" Height="720" Width="1160" MinHeight="560" MinWidth="940"
         Background="{DynamicResource Surface.Window}"
         TextOptions.TextFormattingMode="Ideal"
         UseLayoutRounding="True"
@@ -42,23 +42,23 @@
 
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="20,20,20,12">
                     <Border Width="26" Height="26" CornerRadius="7" Background="{DynamicResource Accent}">
-                        <TextBlock Text="F" Foreground="White" FontWeight="Bold" FontSize="14"
+                        <TextBlock Text="K" Foreground="White" FontWeight="Bold" FontSize="14"
                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                     </Border>
-                    <TextBlock Text="FCon" FontSize="17" FontWeight="SemiBold" Margin="10,0,0,0"
+                    <TextBlock Text="KVN" FontSize="17" FontWeight="SemiBold" Margin="10,0,0,0"
                                VerticalAlignment="Center" />
                 </StackPanel>
 
                 <StackPanel Grid.Row="1">
-                    <RadioButton Style="{StaticResource NavItem}" Content="Servers" GroupName="Nav"
+                    <RadioButton Style="{StaticResource NavItem}" Content="{loc:T Servers}" GroupName="Nav"
                                  IsChecked="{Binding SelectedPage, Converter={StaticResource EqBool}, ConverterParameter=servers}" />
-                    <RadioButton Style="{StaticResource NavItem}" Content="Subscriptions" GroupName="Nav"
+                    <RadioButton Style="{StaticResource NavItem}" Content="{loc:T Subscriptions}" GroupName="Nav"
                                  IsChecked="{Binding SelectedPage, Converter={StaticResource EqBool}, ConverterParameter=subs}" />
-                    <RadioButton Style="{StaticResource NavItem}" Content="Routing" GroupName="Nav"
+                    <RadioButton Style="{StaticResource NavItem}" Content="{loc:T Routing}" GroupName="Nav"
                                  IsChecked="{Binding SelectedPage, Converter={StaticResource EqBool}, ConverterParameter=routing}" />
-                    <RadioButton Style="{StaticResource NavItem}" Content="Log" GroupName="Nav"
+                    <RadioButton Style="{StaticResource NavItem}" Content="{loc:T Log}" GroupName="Nav"
                                  IsChecked="{Binding SelectedPage, Converter={StaticResource EqBool}, ConverterParameter=log}" />
-                    <RadioButton Style="{StaticResource NavItem}" Content="Settings" GroupName="Nav"
+                    <RadioButton Style="{StaticResource NavItem}" Content="{loc:T Settings}" GroupName="Nav"
                                  IsChecked="{Binding SelectedPage, Converter={StaticResource EqBool}, ConverterParameter=settings}" />
                 </StackPanel>
 
@@ -88,10 +88,10 @@
                                 Style="{StaticResource LiftedButton}" Margin="0,12,0,0"
                                 HorizontalAlignment="Stretch" />
 
-                        <Button Content="Connect to best" Command="{Binding ConnectBestCommand}"
+                        <Button Content="{loc:T Connect_to_best}" Command="{Binding ConnectBestCommand}"
                                 Style="{StaticResource GhostButton}" Margin="0,4,0,0"
                                 HorizontalAlignment="Stretch"
-                                ToolTip="Pick the server with the best measured record and connect to it." />
+                                ToolTip="{loc:T Pick_the_server_with_the_best_measured}" />
 
                         <TextBlock Text="{Binding ListenerSummary}" Style="{StaticResource Caption}"
                                    Margin="0,8,0,0" HorizontalAlignment="Center" />
@@ -117,12 +117,12 @@
                 </Grid.RowDefinitions>
 
                 <DockPanel Grid.Row="0">
-                    <TextBlock Text="Servers" Style="{StaticResource Heading}" VerticalAlignment="Center" />
+                    <TextBlock Text="{loc:T Servers}" Style="{StaticResource Heading}" VerticalAlignment="Center" />
                     <Grid DockPanel.Dock="Right" Width="240" Margin="12,0,0,0">
                         <TextBox x:Name="SearchBox"
                                  Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}"
-                                 ToolTip="Filter by name, address, protocol or transport" />
-                        <TextBlock Text="Search servers" Style="{StaticResource Caption}" Margin="11,0,0,0"
+                                 ToolTip="{loc:T Filter_by_name_address_protocol_or_transport}" />
+                        <TextBlock Text="{loc:T Search_servers}" Style="{StaticResource Caption}" Margin="11,0,0,0"
                                    VerticalAlignment="Center" IsHitTestVisible="False"
                                    Foreground="{DynamicResource Text.Disabled}"
                                    Visibility="{Binding SearchText, Converter={StaticResource StrVis},
@@ -139,21 +139,21 @@
                 </DockPanel>
 
                 <WrapPanel Grid.Row="1" Margin="0,14,0,10">
-                    <Button Content="Add" Command="{Binding AddServerCommand}" Margin="0,0,8,8" />
-                    <Button Content="Import from clipboard" Command="{Binding ImportFromClipboardCommand}" Margin="0,0,8,8"
-                            ToolTip="Or press Ctrl+V anywhere: share links are imported, a subscription address is added and fetched." />
-                    <Button Content="Paste links..." Command="{Binding ImportFromTextCommand}" Margin="0,0,8,8" />
-                    <Button Content="Test all" Command="{Binding TestAllCommand}" Margin="0,0,8,8" />
-                    <Button Content="Test selected" Command="{Binding TestSelectedCommand}"
+                    <Button Content="{loc:T Add}" Command="{Binding AddServerCommand}" Margin="0,0,8,8" />
+                    <Button Content="{loc:T Import_from_clipboard}" Command="{Binding ImportFromClipboardCommand}" Margin="0,0,8,8"
+                            ToolTip="{loc:T Or_press_Ctrl_V_anywhere_share_links}" />
+                    <Button Content="{loc:T Paste_links}" Command="{Binding ImportFromTextCommand}" Margin="0,0,8,8" />
+                    <Button Content="{loc:T Test_all}" Command="{Binding TestAllCommand}" Margin="0,0,8,8" />
+                    <Button Content="{loc:T Test_selected}" Command="{Binding TestSelectedCommand}"
                             CommandParameter="{Binding SelectedItems, ElementName=ServerGrid}" Margin="0,0,8,8" />
-                    <Button Content="Real delay" Command="{Binding TestThroughTunnelCommand}" Margin="0,0,8,8" />
-                    <Button Content="Speed test" Command="{Binding SpeedTestCommand}" Margin="0,0,8,8"
-                            ToolTip="Measure download throughput through the active tunnel." />
-                    <Button Content="Sort by latency" Command="{Binding SortByLatencyCommand}" Margin="0,0,8,8" />
-                    <Button Content="Sort by record" Command="{Binding SortByQualityCommand}" Margin="0,0,8,8"
-                            ToolTip="Rank by measured reliability and latency together, not just the last ping." />
-                    <Button Content="Remove duplicates" Command="{Binding DeduplicateCommand}" Margin="0,0,8,8" />
-                    <Button Content="Delete" Command="{Binding DeleteServersCommand}"
+                    <Button Content="{loc:T Real_delay}" Command="{Binding TestThroughTunnelCommand}" Margin="0,0,8,8" />
+                    <Button Content="{loc:T Speed_test}" Command="{Binding SpeedTestCommand}" Margin="0,0,8,8"
+                            ToolTip="{loc:T Measure_download_throughput_through_the_active_t}" />
+                    <Button Content="{loc:T Sort_by_latency}" Command="{Binding SortByLatencyCommand}" Margin="0,0,8,8" />
+                    <Button Content="{loc:T Sort_by_record}" Command="{Binding SortByQualityCommand}" Margin="0,0,8,8"
+                            ToolTip="{loc:T Rank_by_measured_reliability_and_latency_togethe}" />
+                    <Button Content="{loc:T Remove_duplicates}" Command="{Binding DeduplicateCommand}" Margin="0,0,8,8" />
+                    <Button Content="{loc:T Delete}" Command="{Binding DeleteServersCommand}"
                             CommandParameter="{Binding SelectedItems, ElementName=ServerGrid}" Margin="0,0,8,8" />
                 </WrapPanel>
 
@@ -163,16 +163,16 @@
                               MouseDoubleClick="ServerGrid_MouseDoubleClick">
                         <DataGrid.ContextMenu>
                             <ContextMenu>
-                                <MenuItem Header="Connect" Command="{Binding ConnectToCommand}"
+                                <MenuItem Header="{loc:T Connect}" Command="{Binding ConnectToCommand}"
                                           CommandParameter="{Binding SelectedServer}" />
                                 <Separator />
-                                <MenuItem Header="Edit..." Command="{Binding EditServerCommand}"
+                                <MenuItem Header="{loc:T Edit}" Command="{Binding EditServerCommand}"
                                           CommandParameter="{Binding SelectedServer}" />
-                                <MenuItem Header="Duplicate" Command="{Binding DuplicateServerCommand}"
+                                <MenuItem Header="{loc:T Duplicate}" Command="{Binding DuplicateServerCommand}"
                                           CommandParameter="{Binding SelectedServer}" />
-                                <MenuItem Header="Copy share link" Command="{Binding CopyLinkCommand}"
+                                <MenuItem Header="{loc:T Copy_share_link}" Command="{Binding CopyLinkCommand}"
                                           CommandParameter="{Binding SelectedServer}" />
-                                <MenuItem Header="Show generated config" Command="{Binding ShowGeneratedConfigCommand}"
+                                <MenuItem Header="{loc:T Show_generated_config}" Command="{Binding ShowGeneratedConfigCommand}"
                                           CommandParameter="{Binding SelectedServer}" />
                             </ContextMenu>
                         </DataGrid.ContextMenu>
@@ -188,13 +188,13 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="2*" />
-                            <DataGridTextColumn Header="Protocol" Binding="{Binding ProtocolLabel}" Width="110" />
-                            <DataGridTextColumn Header="Address" Binding="{Binding Address}" Width="1.6*" />
-                            <DataGridTextColumn Header="Stack" Binding="{Binding Stack}" Width="1.3*" />
-                            <DataGridTextColumn Header="Group" Binding="{Binding Group}" Width="1*" />
+                            <DataGridTextColumn Header="{loc:T Name}" Binding="{Binding Name}" Width="2*" />
+                            <DataGridTextColumn Header="{loc:T Protocol}" Binding="{Binding ProtocolLabel}" Width="110" />
+                            <DataGridTextColumn Header="{loc:T Address}" Binding="{Binding Address}" Width="1.6*" />
+                            <DataGridTextColumn Header="{loc:T Stack}" Binding="{Binding Stack}" Width="1.3*" />
+                            <DataGridTextColumn Header="{loc:T Group}" Binding="{Binding Group}" Width="1*" />
 
-                            <DataGridTemplateColumn Header="Latency" Width="90">
+                            <DataGridTemplateColumn Header="{loc:T Latency}" Width="90">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding LatencyText}"
@@ -203,7 +203,7 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTemplateColumn Header="Record" Width="90">
+                            <DataGridTemplateColumn Header="{loc:T Record}" Width="90">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding QualityText}"
@@ -228,22 +228,22 @@
                 </Grid.RowDefinitions>
 
                 <DockPanel Grid.Row="0">
-                    <TextBlock Text="Subscriptions" Style="{StaticResource Heading}" VerticalAlignment="Center" />
+                    <TextBlock Text="{loc:T Subscriptions}" Style="{StaticResource Heading}" VerticalAlignment="Center" />
                     <TextBlock DockPanel.Dock="Right" Text="{Binding ProgressText}" Style="{StaticResource Caption}"
                                VerticalAlignment="Center" />
                 </DockPanel>
 
                 <WrapPanel Grid.Row="1" Margin="0,14,0,10">
-                    <Button Content="Add subscription" Command="{Binding AddCommand}" Margin="0,0,8,8" />
-                    <Button Content="Update all" Command="{Binding UpdateAllCommand}" Margin="0,0,8,8" />
-                    <Button Content="Update selected" Command="{Binding UpdateSelectedCommand}" Margin="0,0,8,8" />
-                    <Button Content="Rename" Command="{Binding RenameCommand}" Margin="0,0,8,8" />
-                    <Button Content="Edit URL" Command="{Binding EditUrlCommand}" Margin="0,0,8,8" />
-                    <Button Content="Fetch via tunnel" Command="{Binding ToggleProxyFetchCommand}" Margin="0,0,8,8"
-                            ToolTip="Fetch this subscription through the running proxy instead of directly." />
-                    <Button Content="Activate / deactivate" Command="{Binding ToggleEnabledCommand}" Margin="0,0,8,8"
-                            ToolTip="Deactivating hides this list's servers and stops them being chosen, without deleting them or losing their measured record." />
-                    <Button Content="Remove" Command="{Binding RemoveCommand}" Margin="0,0,8,8" />
+                    <Button Content="{loc:T Add_subscription}" Command="{Binding AddCommand}" Margin="0,0,8,8" />
+                    <Button Content="{loc:T Update_all}" Command="{Binding UpdateAllCommand}" Margin="0,0,8,8" />
+                    <Button Content="{loc:T Update_selected}" Command="{Binding UpdateSelectedCommand}" Margin="0,0,8,8" />
+                    <Button Content="{loc:T Rename}" Command="{Binding RenameCommand}" Margin="0,0,8,8" />
+                    <Button Content="{loc:T Edit_URL}" Command="{Binding EditUrlCommand}" Margin="0,0,8,8" />
+                    <Button Content="{loc:T Fetch_via_tunnel}" Command="{Binding ToggleProxyFetchCommand}" Margin="0,0,8,8"
+                            ToolTip="{loc:T Fetch_this_subscription_through_the_running_prox}" />
+                    <Button Content="{loc:T Activate_deactivate}" Command="{Binding ToggleEnabledCommand}" Margin="0,0,8,8"
+                            ToolTip="{loc:T Deactivating_hides_this_list_s_servers_and}" />
+                    <Button Content="{loc:T Remove}" Command="{Binding RemoveCommand}" Margin="0,0,8,8" />
                 </WrapPanel>
 
                 <Border Grid.Row="2" Style="{StaticResource Card}" Padding="8">
@@ -260,17 +260,17 @@
                         </DataGrid.RowStyle>
 
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="On" Width="42">
+                            <DataGridTemplateColumn Header="{loc:T On}" Width="42">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <CheckBox IsChecked="{Binding IsActive, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                   VerticalAlignment="Center" HorizontalAlignment="Center"
-                                                  ToolTip="Uncheck to take this list's servers out of use. Nothing is deleted." />
+                                                  ToolTip="{loc:T Uncheck_to_take_this_list_s_servers}" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTemplateColumn Header="Name" Width="1.4*">
+                            <DataGridTemplateColumn Header="{loc:T Name}" Width="1.4*">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel VerticalAlignment="Center">
@@ -278,9 +278,9 @@
                                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
                                                 <Border Background="{DynamicResource Accent.Muted}" CornerRadius="4"
                                                         Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center"
-                                                        ToolTip="Ships with FCon. Can be deactivated or renamed, not removed."
+                                                        ToolTip="{loc:T Ships_with_FCon_Can_be_deactivated_or}"
                                                         Visibility="{Binding IsBuiltIn, Converter={StaticResource BoolVis}}">
-                                                    <TextBlock Text="built-in" FontSize="10.5" />
+                                                    <TextBlock Text="{loc:T built_in}" FontSize="10.5" />
                                                 </Border>
                                             </StackPanel>
                                             <TextBlock Text="{Binding Url}" Style="{StaticResource Caption}"
@@ -290,10 +290,10 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTextColumn Header="Servers" Binding="{Binding NodeCount}" Width="70" />
-                            <DataGridTextColumn Header="Updated" Binding="{Binding LastUpdatedText}" Width="130" />
+                            <DataGridTextColumn Header="{loc:T Servers}" Binding="{Binding NodeCount}" Width="70" />
+                            <DataGridTextColumn Header="{loc:T Updated}" Binding="{Binding LastUpdatedText}" Width="130" />
 
-                            <DataGridTemplateColumn Header="Quota" Width="180">
+                            <DataGridTemplateColumn Header="{loc:T Quota}" Width="180">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel VerticalAlignment="Center"
@@ -311,7 +311,7 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTemplateColumn Header="Status" Width="*">
+                            <DataGridTemplateColumn Header="{loc:T Status}" Width="*">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding StatusText}" TextTrimming="CharacterEllipsis"
@@ -344,24 +344,24 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0" Text="Routing" Style="{StaticResource Heading}" />
+                <TextBlock Grid.Row="0" Text="{loc:T Routing}" Style="{StaticResource Heading}" />
 
                 <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,14,0,10">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Mode" VerticalAlignment="Center" Width="130" />
+                            <TextBlock Text="{loc:T Mode}" VerticalAlignment="Center" Width="130" />
                             <ComboBox Width="260" ItemsSource="{Binding Modes}" SelectedItem="{Binding Mode}"
                                       ItemTemplate="{StaticResource EnumItemTemplate}" />
                         </StackPanel>
                         <WrapPanel Margin="0,14,0,0">
-                            <CheckBox Content="Bypass private networks" IsChecked="{Binding BypassPrivateNetworks}"
+                            <CheckBox Content="{loc:T Bypass_private_networks}" IsChecked="{Binding BypassPrivateNetworks}"
                                       Margin="0,0,22,8" />
-                            <CheckBox Content="Bypass Microsoft services" IsChecked="{Binding BypassMicrosoftServices}"
+                            <CheckBox Content="{loc:T Bypass_Microsoft_services}" IsChecked="{Binding BypassMicrosoftServices}"
                                       Margin="0,0,22,8" />
-                            <CheckBox Content="Block ads" IsChecked="{Binding BlockAds}" Margin="0,0,22,8" />
-                            <CheckBox Content="Block QUIC" IsChecked="{Binding BlockQuic}" Margin="0,0,22,8"
-                                      ToolTip="Forces browsers back to TLS, which sniffs and routes more reliably." />
-                            <CheckBox Content="Resolve domains for IP rules" IsChecked="{Binding ResolveDomainsForIpRules}"
+                            <CheckBox Content="{loc:T Block_ads}" IsChecked="{Binding BlockAds}" Margin="0,0,22,8" />
+                            <CheckBox Content="{loc:T Block_QUIC}" IsChecked="{Binding BlockQuic}" Margin="0,0,22,8"
+                                      ToolTip="{loc:T Forces_browsers_back_to_TLS_which_sniffs}" />
+                            <CheckBox Content="{loc:T Resolve_domains_for_IP_rules}" IsChecked="{Binding ResolveDomainsForIpRules}"
                                       Margin="0,0,22,8" />
                         </WrapPanel>
                     </StackPanel>
@@ -376,11 +376,11 @@
                     <Border Grid.Column="0" Style="{StaticResource Card}" Padding="8" Margin="0,0,10,0">
                         <DockPanel>
                             <WrapPanel DockPanel.Dock="Bottom" Margin="4,8,4,2">
-                                <Button Content="Add" Command="{Binding AddRuleCommand}" Style="{StaticResource GhostButton}" />
-                                <Button Content="Remove" Command="{Binding RemoveRuleCommand}" Style="{StaticResource GhostButton}" />
-                                <Button Content="Up" Command="{Binding MoveUpCommand}" Style="{StaticResource GhostButton}" />
-                                <Button Content="Down" Command="{Binding MoveDownCommand}" Style="{StaticResource GhostButton}" />
-                                <Button Content="Reset" Command="{Binding ResetToDefaultsCommand}" Style="{StaticResource GhostButton}" />
+                                <Button Content="{loc:T Add}" Command="{Binding AddRuleCommand}" Style="{StaticResource GhostButton}" />
+                                <Button Content="{loc:T Remove}" Command="{Binding RemoveRuleCommand}" Style="{StaticResource GhostButton}" />
+                                <Button Content="{loc:T Up}" Command="{Binding MoveUpCommand}" Style="{StaticResource GhostButton}" />
+                                <Button Content="{loc:T Down}" Command="{Binding MoveDownCommand}" Style="{StaticResource GhostButton}" />
+                                <Button Content="{loc:T Reset}" Command="{Binding ResetToDefaultsCommand}" Style="{StaticResource GhostButton}" />
                             </WrapPanel>
                             <ListBox ItemsSource="{Binding Rules}" SelectedItem="{Binding Selected}"
                                      Background="Transparent" BorderThickness="0">
@@ -407,36 +407,36 @@
                     <Border Grid.Column="1" Style="{StaticResource Card}">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" DataContext="{Binding Selected}">
                             <StackPanel Margin="0,0,10,0">
-                                <TextBlock Text="Rule name" Style="{StaticResource SectionLabel}" Margin="0,0,0,6" />
+                                <TextBlock Text="{loc:T Rule_name}" Style="{StaticResource SectionLabel}" Margin="0,0,0,6" />
                                 <TextBox Text="{Binding Name, UpdateSourceTrigger=LostFocus}" />
 
-                                <TextBlock Text="Action" Style="{StaticResource SectionLabel}" />
+                                <TextBlock Text="{loc:T Action}" Style="{StaticResource SectionLabel}" />
                                 <ComboBox ItemsSource="{Binding Actions}" SelectedItem="{Binding Action}"
                                           HorizontalAlignment="Left" Width="200" />
 
-                                <TextBlock Text="Domains (one per line)" Style="{StaticResource SectionLabel}" />
+                                <TextBlock Text="{loc:T Domains_one_per_line}" Style="{StaticResource SectionLabel}" />
                                 <TextBox Text="{Binding Domains, UpdateSourceTrigger=LostFocus}" Height="110"
                                          AcceptsReturn="True" TextWrapping="NoWrap"
                                          VerticalScrollBarVisibility="Auto"
-                                         ToolTip="Plain suffix, or full: / keyword: / regexp: / geosite: prefixes." />
+                                         ToolTip="{loc:T Plain_suffix_or_full_keyword_regexp_geosite}" />
 
-                                <TextBlock Text="IP rules (one per line)" Style="{StaticResource SectionLabel}" />
+                                <TextBlock Text="{loc:T IP_rules_one_per_line}" Style="{StaticResource SectionLabel}" />
                                 <TextBox Text="{Binding Ips, UpdateSourceTrigger=LostFocus}" Height="90"
                                          AcceptsReturn="True" TextWrapping="NoWrap"
                                          VerticalScrollBarVisibility="Auto"
-                                         ToolTip="CIDR, bare IP, or geoip: entries." />
+                                         ToolTip="{loc:T CIDR_bare_IP_or_geoip_entries}" />
 
-                                <TextBlock Text="Ports" Style="{StaticResource SectionLabel}" />
+                                <TextBlock Text="{loc:T Ports}" Style="{StaticResource SectionLabel}" />
                                 <TextBox Text="{Binding Ports, UpdateSourceTrigger=LostFocus}"
-                                         ToolTip="Comma separated. Ranges use a hyphen, e.g. 8000-9000." />
+                                         ToolTip="{loc:T Comma_separated_Ranges_use_a_hyphen_e}" />
 
-                                <TextBlock Text="Processes" Style="{StaticResource SectionLabel}" />
+                                <TextBlock Text="{loc:T Processes}" Style="{StaticResource SectionLabel}" />
                                 <TextBox Text="{Binding Processes, UpdateSourceTrigger=LostFocus}"
-                                         ToolTip="Executable names, e.g. chrome.exe, Discord.exe" />
+                                         ToolTip="{loc:T Executable_names_e_g_chrome_exe_Discord}" />
 
-                                <TextBlock Text="Protocols" Style="{StaticResource SectionLabel}" />
+                                <TextBlock Text="{loc:T Protocols}" Style="{StaticResource SectionLabel}" />
                                 <TextBox Text="{Binding Protocols, UpdateSourceTrigger=LostFocus}"
-                                         ToolTip="Sniffed protocols: http, tls, quic, bittorrent, dns" />
+                                         ToolTip="{loc:T Sniffed_protocols_http_tls_quic_bittorrent_dns}" />
                             </StackPanel>
                         </ScrollViewer>
                     </Border>
@@ -453,18 +453,18 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0" Text="Log" Style="{StaticResource Heading}" />
+                <TextBlock Grid.Row="0" Text="{loc:T Log}" Style="{StaticResource Heading}" />
 
                 <DockPanel Grid.Row="1" Margin="0,14,0,10">
-                    <Button DockPanel.Dock="Right" Content="Save..." Command="{Binding SaveCommand}" Margin="8,0,0,0" />
-                    <Button DockPanel.Dock="Right" Content="Copy" Command="{Binding CopyAllCommand}" Margin="8,0,0,0" />
-                    <Button DockPanel.Dock="Right" Content="Clear" Command="{Binding ClearCommand}" Margin="8,0,0,0" />
-                    <CheckBox DockPanel.Dock="Right" Content="Auto-scroll" IsChecked="{Binding AutoScroll}"
+                    <Button DockPanel.Dock="Right" Content="{loc:T Save}" Command="{Binding SaveCommand}" Margin="8,0,0,0" />
+                    <Button DockPanel.Dock="Right" Content="{loc:T Copy}" Command="{Binding CopyAllCommand}" Margin="8,0,0,0" />
+                    <Button DockPanel.Dock="Right" Content="{loc:T Clear}" Command="{Binding ClearCommand}" Margin="8,0,0,0" />
+                    <CheckBox DockPanel.Dock="Right" Content="{loc:T Auto_scroll}" IsChecked="{Binding AutoScroll}"
                               VerticalAlignment="Center" Margin="16,0,0,0" />
-                    <CheckBox DockPanel.Dock="Right" Content="Errors only" IsChecked="{Binding ErrorsOnly}"
+                    <CheckBox DockPanel.Dock="Right" Content="{loc:T Errors_only}" IsChecked="{Binding ErrorsOnly}"
                               VerticalAlignment="Center" Margin="16,0,0,0" />
                     <TextBox Text="{Binding Filter, UpdateSourceTrigger=PropertyChanged, Delay=250}"
-                             ToolTip="Filter log lines" />
+                             ToolTip="{loc:T Filter_log_lines}" />
                 </DockPanel>
 
                 <Border Grid.Row="2" Style="{StaticResource Card}" Padding="6">
@@ -499,11 +499,11 @@
                           Visibility="{Binding DataContext.SelectedPage, RelativeSource={RelativeSource AncestorType=Window},
                                        Converter={StaticResource EqVis}, ConverterParameter=settings}">
                 <StackPanel Margin="0,0,12,0">
-                    <TextBlock Text="Settings" Style="{StaticResource Heading}" />
+                    <TextBlock Text="{loc:T Settings}" Style="{StaticResource Heading}" />
 
                     <Border Style="{StaticResource Card}" Margin="0,14,0,10">
                         <StackPanel>
-                            <TextBlock Text="ENGINE" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
+                            <TextBlock Text="{loc:T ENGINE}" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="180" />
@@ -515,19 +515,19 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Proxy core" VerticalAlignment="Center" />
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:T Proxy_core}" VerticalAlignment="Center" />
                                 <ComboBox Grid.Row="0" Grid.Column="1" Width="260" HorizontalAlignment="Left"
                                           ItemsSource="{Binding Engines}" SelectedItem="{Binding Engine}"
                                           ItemTemplate="{StaticResource EnumItemTemplate}" />
 
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Traffic capture" VerticalAlignment="Center"
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:T Traffic_capture}" VerticalAlignment="Center"
                                            Margin="0,12,0,0" />
                                 <ComboBox Grid.Row="1" Grid.Column="1" Width="260" HorizontalAlignment="Left"
                                           Margin="0,12,0,0" ItemsSource="{Binding TrafficModes}"
                                           SelectedItem="{Binding TrafficMode}"
                                           ItemTemplate="{StaticResource EnumItemTemplate}" />
 
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Log level" VerticalAlignment="Center"
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:T Log_level}" VerticalAlignment="Center"
                                            Margin="0,12,0,0" />
                                 <ComboBox Grid.Row="2" Grid.Column="1" Width="260" HorizontalAlignment="Left"
                                           Margin="0,12,0,0" ItemsSource="{Binding LogLevels}" SelectedItem="{Binding LogLevel}" />
@@ -559,7 +559,7 @@
                                                         <Border Background="{DynamicResource Accent.Muted}" CornerRadius="4"
                                                                 Padding="6,1" Margin="10,0,0,0" VerticalAlignment="Center"
                                                                 Visibility="{Binding IsSelected, Converter={StaticResource BoolVis}}">
-                                                            <TextBlock Text="in use" FontSize="10.5" />
+                                                            <TextBlock Text="{loc:T in_use}" FontSize="10.5" />
                                                         </Border>
                                                     </StackPanel>
                                                     <TextBlock Text="{Binding Detail}" Style="{StaticResource Caption}"
@@ -573,15 +573,15 @@
                                                                VerticalAlignment="Center" Margin="0,0,10,0"
                                                                Visibility="{Binding IsBusy, Converter={StaticResource BoolVis}}" />
                                                     <Button Content="{Binding InstallLabel}"
-                                                            ToolTip="Fetch the latest stable release from GitHub. The archive is checked against the published SHA-256 before it is installed."
+                                                            ToolTip="{loc:T Fetch_the_latest_stable_release_from_GitHub}"
                                                             Command="{Binding DataContext.InstallEngineCommand,
                                                                       RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                             CommandParameter="{Binding}"
                                                             Visibility="{Binding IsBusy, Converter={StaticResource BoolVis},
                                                                          ConverterParameter=invert}" />
-                                                    <Button Content="manual" Style="{StaticResource GhostButton}"
+                                                    <Button Content="{loc:T manual}" Style="{StaticResource GhostButton}"
                                                             Margin="6,0,0,0"
-                                                            ToolTip="Open the releases page and the engines folder instead."
+                                                            ToolTip="{loc:T Open_the_releases_page_and_the_engines}"
                                                             Command="{Binding DataContext.GetEngineCommand,
                                                                       RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                             CommandParameter="{Binding InstallKey}"
@@ -595,9 +595,9 @@
                             </ItemsControl>
 
                             <WrapPanel Margin="0,4,0,0">
-                                <Button Content="Re-check" Command="{Binding RefreshEngineStatusCommand}"
+                                <Button Content="{loc:T Re_check}" Command="{Binding RefreshEngineStatusCommand}"
                                         Style="{StaticResource GhostButton}" />
-                                <Button Content="Open engines folder" Command="{Binding OpenEnginesFolderCommand}"
+                                <Button Content="{loc:T Open_engines_folder}" Command="{Binding OpenEnginesFolderCommand}"
                                         Style="{StaticResource GhostButton}" />
                             </WrapPanel>
                         </StackPanel>
@@ -616,7 +616,7 @@
                                                    VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Border>
-                                <TextBlock Text="REVIEW" Style="{StaticResource SectionLabel}" Margin="0" />
+                                <TextBlock Text="{loc:T REVIEW}" Style="{StaticResource SectionLabel}" Margin="0" />
                             </DockPanel>
 
                             <ItemsControl ItemsSource="{Binding Advice}">
@@ -644,15 +644,15 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
-                            <TextBlock Text="Nothing to flag. Settings and the selected server look sound."
+                            <TextBlock Text="{loc:T Nothing_to_flag_Settings_and_the_selected}"
                                        Style="{StaticResource Caption}"
                                        Visibility="{Binding HasAdvice, Converter={StaticResource BoolVis},
                                                     ConverterParameter=invert}" />
 
                             <WrapPanel Margin="0,8,0,0">
-                                <Button Content="Apply recommended" Command="{Binding ApplyRecommendedCommand}"
-                                        ToolTip="Fix everything that does not need a judgement call." />
-                                <Button Content="Re-check" Command="{Binding RefreshAdviceCommand}"
+                                <Button Content="{loc:T Apply_recommended}" Command="{Binding ApplyRecommendedCommand}"
+                                        ToolTip="{loc:T Fix_everything_that_does_not_need_a}" />
+                                <Button Content="{loc:T Re_check}" Command="{Binding RefreshAdviceCommand}"
                                         Style="{StaticResource GhostButton}" Margin="8,0,0,0" />
                             </WrapPanel>
                         </StackPanel>
@@ -660,137 +660,142 @@
 
                     <Border Style="{StaticResource Card}" Margin="0,0,0,10">
                         <StackPanel>
-                            <TextBlock Text="RESILIENCE" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
+                            <TextBlock Text="{loc:T RESILIENCE}" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
                             <WrapPanel>
-                                <CheckBox Content="Verify traffic on connect" IsChecked="{Binding VerifyOnConnect}"
+                                <CheckBox Content="{loc:T Verify_traffic_on_connect}" IsChecked="{Binding VerifyOnConnect}"
                                           Margin="0,0,22,8"
-                                          ToolTip="A core binds its port even when the server is dead. This proves data actually flows." />
-                                <CheckBox Content="Monitor while connected" IsChecked="{Binding ContinuousHealthCheck}"
+                                          ToolTip="{loc:T A_core_binds_its_port_even_when}" />
+                                <CheckBox Content="{loc:T Monitor_while_connected}" IsChecked="{Binding ContinuousHealthCheck}"
                                           Margin="0,0,22,8" />
-                                <CheckBox Content="Reconnect automatically" IsChecked="{Binding AutoReconnect}"
+                                <CheckBox Content="{loc:T Reconnect_automatically}" IsChecked="{Binding AutoReconnect}"
                                           Margin="0,0,22,8" />
-                                <CheckBox Content="Fail over to another server" IsChecked="{Binding AutoFailover}"
+                                <CheckBox Content="{loc:T Fail_over_to_another_server}" IsChecked="{Binding AutoFailover}"
                                           Margin="0,0,22,8" />
-                                <CheckBox Content="Always start with the best server" IsChecked="{Binding PreferBestServer}"
+                                <CheckBox Content="{loc:T Always_start_with_the_best_server}" IsChecked="{Binding PreferBestServer}"
                                           Margin="0,0,22,8" />
-                                <CheckBox Content="Switch servers inside the core" IsChecked="{Binding InCoreFailover}"
+                                <CheckBox Content="{loc:T Switch_servers_inside_the_core}" IsChecked="{Binding InCoreFailover}"
                                           Margin="0,0,22,8"
-                                          ToolTip="Put the best servers into the core as a group, so a failing one is swapped in about a second without restarting the core or dropping other connections. Off: one server per config, restart to change." />
+                                          ToolTip="{loc:T Put_the_best_servers_into_the_core}" />
                             </WrapPanel>
                             <WrapPanel Margin="0,6,0,0">
                                 <StackPanel Orientation="Horizontal" Margin="0,0,22,0">
-                                    <TextBlock Text="Check every (seconds)" VerticalAlignment="Center"
+                                    <TextBlock Text="{loc:T Check_every_seconds}" VerticalAlignment="Center"
                                                Style="{StaticResource Caption}" />
                                     <TextBox Width="90" Text="{Binding HealthCheckIntervalSeconds}" Margin="10,0,0,0" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Servers in the group" VerticalAlignment="Center"
+                                    <TextBlock Text="{loc:T Servers_in_the_group}" VerticalAlignment="Center"
                                                Style="{StaticResource Caption}"
-                                               ToolTip="Every member is measured on the health interval; the cap bounds that traffic." />
+                                               ToolTip="{loc:T Every_member_is_measured_on_the_health}" />
                                     <TextBox Width="90" Text="{Binding FailoverPoolSize}" Margin="10,0,0,0" />
                                 </StackPanel>
                             </WrapPanel>
                             <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0" TextWrapping="Wrap"
-                                       Text="While connected, real traffic counts as proof the tunnel works; the probe only runs when nothing has flowed. A failed probe is re-checked within seconds, and the running core is asked to switch server before anything is restarted." />
+                                       Text="{loc:T While_connected_real_traffic_counts_as_proof}" />
                         </StackPanel>
                     </Border>
 
                     <Border Style="{StaticResource Card}" Margin="0,0,0,10">
                         <StackPanel>
-                            <TextBlock Text="LISTENERS" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
+                            <TextBlock Text="{loc:T LISTENERS}" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
                             <WrapPanel>
                                 <StackPanel Margin="0,0,20,8">
-                                    <TextBlock Text="SOCKS port" Style="{StaticResource Caption}" />
+                                    <TextBlock Text="{loc:T SOCKS_port}" Style="{StaticResource Caption}" />
                                     <TextBox Width="110" Text="{Binding SocksPort}" Margin="0,4,0,0" />
                                 </StackPanel>
                                 <StackPanel Margin="0,0,20,8">
-                                    <TextBlock Text="HTTP port" Style="{StaticResource Caption}" />
+                                    <TextBlock Text="{loc:T HTTP_port}" Style="{StaticResource Caption}" />
                                     <TextBox Width="110" Text="{Binding HttpPort}" Margin="0,4,0,0" />
                                 </StackPanel>
                                 <StackPanel Margin="0,0,20,8">
-                                    <TextBlock Text="API port" Style="{StaticResource Caption}" />
+                                    <TextBlock Text="{loc:T API_port}" Style="{StaticResource Caption}" />
                                     <TextBox Width="110" Text="{Binding ApiPort}" Margin="0,4,0,0" />
                                 </StackPanel>
-                                <Button Content="Pick free ports" Command="{Binding PickFreePortsCommand}"
+                                <Button Content="{loc:T Pick_free_ports}" Command="{Binding PickFreePortsCommand}"
                                         VerticalAlignment="Bottom" Margin="0,0,0,8" />
                             </WrapPanel>
                             <WrapPanel Margin="0,8,0,0">
-                                <CheckBox Content="Allow LAN connections" IsChecked="{Binding AllowLan}" Margin="0,0,22,8" />
-                                <CheckBox Content="Sniff destinations" IsChecked="{Binding EnableSniffing}" Margin="0,0,22,8" />
-                                <CheckBox Content="Route by sniffed domain" IsChecked="{Binding RouteByDomain}" Margin="0,0,22,8" />
+                                <CheckBox Content="{loc:T Allow_LAN_connections}" IsChecked="{Binding AllowLan}" Margin="0,0,22,8" />
+                                <CheckBox Content="{loc:T Sniff_destinations}" IsChecked="{Binding EnableSniffing}" Margin="0,0,22,8" />
+                                <CheckBox Content="{loc:T Route_by_sniffed_domain}" IsChecked="{Binding RouteByDomain}" Margin="0,0,22,8" />
                             </WrapPanel>
-                            <Button Content="Restore Windows proxy settings" Command="{Binding ClearSystemProxyCommand}"
+                            <Button Content="{loc:T Restore_Windows_proxy_settings}" Command="{Binding ClearSystemProxyCommand}"
                                     Style="{StaticResource GhostButton}" HorizontalAlignment="Left" Margin="0,4,0,0" />
                         </StackPanel>
                     </Border>
 
                     <Border Style="{StaticResource Card}" Margin="0,0,0,10">
                         <StackPanel>
-                            <TextBlock Text="DNS" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
+                            <TextBlock Text="{loc:T DNS}" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
                             <WrapPanel>
                                 <StackPanel Margin="0,0,20,8">
-                                    <TextBlock Text="Remote resolver" Style="{StaticResource Caption}" />
+                                    <TextBlock Text="{loc:T Remote_resolver}" Style="{StaticResource Caption}" />
                                     <TextBox Width="280" Text="{Binding RemoteDns}" Margin="0,4,0,0" />
                                 </StackPanel>
                                 <StackPanel Margin="0,0,20,8">
-                                    <TextBlock Text="Direct resolver" Style="{StaticResource Caption}" />
+                                    <TextBlock Text="{loc:T Direct_resolver}" Style="{StaticResource Caption}" />
                                     <TextBox Width="280" Text="{Binding DirectDns}" Margin="0,4,0,0" />
                                 </StackPanel>
                                 <StackPanel Margin="0,0,20,8">
-                                    <TextBlock Text="Bootstrap" Style="{StaticResource Caption}" />
+                                    <TextBlock Text="{loc:T Bootstrap}" Style="{StaticResource Caption}" />
                                     <TextBox Width="140" Text="{Binding BootstrapDns}" Margin="0,4,0,0" />
                                 </StackPanel>
                             </WrapPanel>
-                            <CheckBox Content="Use fake-IP responses (sing-box)" IsChecked="{Binding FakeIp}" Margin="0,6,0,0" />
+                            <CheckBox Content="{loc:T Use_fake_IP_responses_sing_box}" IsChecked="{Binding FakeIp}" Margin="0,6,0,0" />
                         </StackPanel>
                     </Border>
 
                     <Border Style="{StaticResource Card}" Margin="0,0,0,10">
                         <StackPanel>
-                            <TextBlock Text="TUN" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
+                            <TextBlock Text="{loc:T TUN}" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
                             <WrapPanel>
                                 <StackPanel Margin="0,0,20,8">
-                                    <TextBlock Text="Interface name" Style="{StaticResource Caption}" />
+                                    <TextBlock Text="{loc:T Interface_name}" Style="{StaticResource Caption}" />
                                     <TextBox Width="160" Text="{Binding TunInterfaceName}" Margin="0,4,0,0" />
                                 </StackPanel>
                                 <StackPanel Margin="0,0,20,8">
-                                    <TextBlock Text="Stack" Style="{StaticResource Caption}" />
+                                    <TextBlock Text="{loc:T Stack}" Style="{StaticResource Caption}" />
                                     <ComboBox Width="140" ItemsSource="{Binding TunStacks}" SelectedItem="{Binding TunStack}"
                                               Margin="0,4,0,0" />
                                 </StackPanel>
                                 <StackPanel Margin="0,0,20,8">
-                                    <TextBlock Text="MTU" Style="{StaticResource Caption}" />
+                                    <TextBlock Text="{loc:T MTU}" Style="{StaticResource Caption}" />
                                     <TextBox Width="100" Text="{Binding TunMtu}" Margin="0,4,0,0" />
                                 </StackPanel>
                             </WrapPanel>
                             <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,4,0,0"
-                                       Text="TUN captures every application, including those that ignore the system proxy. It requires sing-box and administrator rights." />
+                                       Text="{loc:T TUN_captures_every_application_including_those_t}" />
                         </StackPanel>
                     </Border>
 
                     <Border Style="{StaticResource Card}" Margin="0,0,0,10">
                         <StackPanel>
-                            <TextBlock Text="BEHAVIOUR" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
+                            <TextBlock Text="{loc:T BEHAVIOUR}" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
                             <WrapPanel>
-                                <CheckBox Content="Launch at login" IsChecked="{Binding LaunchAtLogin}" Margin="0,0,22,8" />
-                                <CheckBox Content="Start minimised" IsChecked="{Binding StartMinimized}" Margin="0,0,22,8" />
-                                <CheckBox Content="Close to tray" IsChecked="{Binding CloseToTray}" Margin="0,0,22,8" />
-                                <CheckBox Content="Reconnect last server on start" IsChecked="{Binding AutoStartLastServer}" Margin="0,0,22,8" />
-                                <CheckBox Content="Auto-update subscriptions" IsChecked="{Binding AutoUpdateSubscriptions}" Margin="0,0,22,8" />
+                                <CheckBox Content="{loc:T Launch_at_login}" IsChecked="{Binding LaunchAtLogin}" Margin="0,0,22,8" />
+                                <CheckBox Content="{loc:T Start_minimised}" IsChecked="{Binding StartMinimized}" Margin="0,0,22,8" />
+                                <CheckBox Content="{loc:T Close_to_tray}" IsChecked="{Binding CloseToTray}" Margin="0,0,22,8" />
+                                <CheckBox Content="{loc:T Reconnect_last_server_on_start}" IsChecked="{Binding AutoStartLastServer}" Margin="0,0,22,8" />
+                                <CheckBox Content="{loc:T Auto_update_subscriptions}" IsChecked="{Binding AutoUpdateSubscriptions}" Margin="0,0,22,8" />
                             </WrapPanel>
                             <WrapPanel Margin="0,8,0,0">
                                 <StackPanel Margin="0,0,20,8">
-                                    <TextBlock Text="Update every (hours)" Style="{StaticResource Caption}" />
+                                    <TextBlock Text="{loc:T Update_every_hours}" Style="{StaticResource Caption}" />
                                     <TextBox Width="100" Text="{Binding SubscriptionUpdateHours}" Margin="0,4,0,0" />
                                 </StackPanel>
                                 <StackPanel Margin="0,0,20,8">
-                                    <TextBlock Text="Latency test URL" Style="{StaticResource Caption}" />
+                                    <TextBlock Text="{loc:T Latency_test_URL}" Style="{StaticResource Caption}" />
                                     <TextBox Width="320" Text="{Binding LatencyTestUrl}" Margin="0,4,0,0" />
                                 </StackPanel>
                                 <StackPanel Margin="0,0,20,8">
-                                    <TextBlock Text="Theme" Style="{StaticResource Caption}" />
+                                    <TextBlock Text="{loc:T Theme}" Style="{StaticResource Caption}" />
                                     <ComboBox Width="140" ItemsSource="{Binding Themes}" SelectedItem="{Binding Theme}"
                                               Margin="0,4,0,0" />
+                                </StackPanel>
+                                <StackPanel Margin="0,0,20,8">
+                                    <TextBlock Text="{loc:T Language}" Style="{StaticResource Caption}" />
+                                    <ComboBox Width="160" ItemsSource="{Binding Languages}" SelectedItem="{Binding Language}"
+                                              DisplayMemberPath="Label" Margin="0,4,0,0" />
                                 </StackPanel>
                             </WrapPanel>
                         </StackPanel>
@@ -799,11 +804,11 @@
                     <Border Style="{StaticResource Card}" Margin="0,0,0,20">
                         <StackPanel>
                             <DockPanel>
-                                <Button DockPanel.Dock="Right" Content="Open plugins folder"
+                                <Button DockPanel.Dock="Right" Content="{loc:T Open_plugins_folder}"
                                         Command="{Binding OpenPluginsFolderCommand}" Style="{StaticResource GhostButton}" />
-                                <Button DockPanel.Dock="Right" Content="Reload"
+                                <Button DockPanel.Dock="Right" Content="{loc:T Reload}"
                                         Command="{Binding RefreshPluginsCommand}" Style="{StaticResource GhostButton}" />
-                                <TextBlock Text="PROTOCOL PLUGINS" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
+                                <TextBlock Text="{loc:T PROTOCOL_PLUGINS}" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
                             </DockPanel>
 
                             <ItemsControl ItemsSource="{Binding Plugins}" Margin="0,6,0,0">
@@ -840,7 +845,7 @@
                             </ItemsControl>
 
                             <DockPanel Margin="0,10,0,0">
-                                <Button DockPanel.Dock="Right" Content="Open data folder"
+                                <Button DockPanel.Dock="Right" Content="{loc:T Open_data_folder}"
                                         Command="{Binding OpenDataFolderCommand}" Style="{StaticResource GhostButton}" />
                                 <TextBlock Text="{Binding DataDirectory}" Style="{StaticResource Caption}"
                                            VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
@@ -878,7 +883,7 @@
                         <Border Background="{DynamicResource Accent.Muted}" CornerRadius="9" Padding="8,1"
                                 Margin="12,0,0,0" VerticalAlignment="Center"
                                 Visibility="{Binding ExitText, Converter={StaticResource StrVis}}"
-                                ToolTip="Reported by the far side of the tunnel, so it doubles as proof the connection is real.">
+                                ToolTip="{loc:T Reported_by_the_far_side_of_the}">
                             <TextBlock Text="{Binding ExitText}" FontSize="11" VerticalAlignment="Center" />
                         </Border>
 

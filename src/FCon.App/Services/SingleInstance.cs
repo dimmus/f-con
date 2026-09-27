@@ -6,8 +6,8 @@ namespace FCon.App.Services;
 /// </summary>
 public sealed class SingleInstance : IDisposable
 {
-    private const string MutexName = @"Global\FCon.SingleInstance";
-    private const string SignalName = @"Global\FCon.ShowWindow";
+    private const string MutexName = @"Global\KVN.SingleInstance";
+    private const string SignalName = @"Global\KVN.ShowWindow";
 
     private readonly Mutex _mutex;
     private readonly EventWaitHandle? _signal;

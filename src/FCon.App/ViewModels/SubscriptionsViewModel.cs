@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FCon.App.Services;
 using FCon.Core.Storage;
+using FCon.Core.Localization;
 
 namespace FCon.App.ViewModels;
 
@@ -27,9 +28,7 @@ public sealed partial class SubscriptionsViewModel(
     [RelayCommand]
     private void Add()
     {
-        var url = dialogs.PromptText(
-            "Add subscription",
-            "Paste the subscription URL. It will be fetched and its servers imported.");
+        var url = dialogs.PromptText(L.T("Add_subscription"), L.T("AddSubscriptionBody"));
 
         if (string.IsNullOrWhiteSpace(url)) return;
         AddUrl(url, quiet: false);
@@ -44,7 +43,7 @@ public sealed partial class SubscriptionsViewModel(
         if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri)
             || uri.Scheme is not ("http" or "https"))
         {
-            if (!quiet) dialogs.ShowError("Invalid URL", "A subscription URL must start with http:// or https://.");
+            if (!quiet) dialogs.ShowError(L.T("Dlg_InvalidUrl"), L.T("InvalidUrlBody"));
             return false;
         }
 
@@ -86,7 +85,7 @@ public sealed partial class SubscriptionsViewModel(
         row ??= Selected;
         if (row is null) return;
 
-        var name = dialogs.PromptText("Rename subscription", "Display name", row.Model.Name);
+        var name = dialogs.PromptText(L.T("Dlg_RenameSubscription"), L.T("DisplayName"), row.Model.Name);
         if (string.IsNullOrWhiteSpace(name)) return;
 
         row.Model.Name = name.Trim();
@@ -103,12 +102,11 @@ public sealed partial class SubscriptionsViewModel(
 
         if (row.Model.IsBuiltIn)
         {
-            dialogs.ShowInfo("Built-in subscription",
-                "This list ships with FCon and its address is fixed. Add your own subscription for a different URL.");
+            dialogs.ShowInfo(L.T("Dlg_BuiltIn"), L.T("BuiltInFixedUrl"));
             return;
         }
 
-        var url = dialogs.PromptText("Subscription URL", "Update the fetch URL", row.Model.Url);
+        var url = dialogs.PromptText(L.T("Dlg_SubscriptionUrl"), L.T("UpdateFetchUrl"), row.Model.Url);
         if (string.IsNullOrWhiteSpace(url)) return;
 
         row.Model.Url = url.Trim();
@@ -124,13 +122,11 @@ public sealed partial class SubscriptionsViewModel(
 
         if (row.Model.IsBuiltIn)
         {
-            dialogs.ShowInfo("Built-in subscription",
-                "This list ships with FCon and cannot be removed. Uncheck it to take its servers out of use.");
+            dialogs.ShowInfo(L.T("Dlg_BuiltIn"), L.T("BuiltInCannotRemove"));
             return;
         }
 
-        if (!dialogs.Confirm("Remove subscription",
-                $"Remove \"{row.Model.Name}\" and the {row.Model.NodeCount} server(s) it provided?"))
+        if (!dialogs.Confirm(L.T("Dlg_RemoveSubscription"), L.F("RemoveSubscriptionBody", row.Model.Name, row.Model.NodeCount)))
             return;
 
         services.Profiles.RemoveSubscription(row.Model.Id, removeNodes: true);
@@ -193,7 +189,7 @@ public sealed partial class SubscriptionsViewModel(
         if (row is null || IsUpdating) return;
 
         IsUpdating = true;
-        ProgressText = $"Updating {row.Model.Name}...";
+        ProgressText = L.F("Updating", row.Model.Name);
         try
         {
             var result = await services.Subscriptions.UpdateAsync(row.Model);
@@ -201,7 +197,7 @@ public sealed partial class SubscriptionsViewModel(
             refreshServers();
 
             if (!result.Succeeded)
-                dialogs.ShowError("Subscription update failed", result.FatalError!);
+                dialogs.ShowError(L.T("Dlg_UpdateFailed"), result.FatalError!);
         }
         finally
         {
@@ -218,7 +214,7 @@ public sealed partial class SubscriptionsViewModel(
         IsUpdating = true;
         try
         {
-            var progress = new Progress<Subscription>(s => ProgressText = $"Updating {s.Name}...");
+            var progress = new Progress<Subscription>(s => ProgressText = L.F("Updating", s.Name));
             var results = await services.Subscriptions.UpdateAllAsync(progress);
 
             Refresh();
@@ -227,7 +223,7 @@ public sealed partial class SubscriptionsViewModel(
             var failed = results.Where(r => !r.Succeeded).ToList();
             if (failed.Count > 0)
             {
-                dialogs.ShowError("Some subscriptions failed", string.Join(
+                dialogs.ShowError(L.T("Dlg_SomeFailed"), string.Join(
                     Environment.NewLine,
                     failed.Select(f => $"{f.Subscription.Name}: {f.FatalError}")));
             }
@@ -269,9 +265,9 @@ public sealed partial class SubscriptionRowViewModel(
 
     public string LastUpdatedText => Model.LastUpdated is { } t
         ? t.LocalDateTime.ToString("g")
-        : "never";
+        : L.T("Never");
 
-    public string StatusText => Model.LastError ?? (Model.Enabled ? "OK" : "Deactivated");
+    public string StatusText => Model.LastError ?? (Model.Enabled ? L.T("OK") : L.T("Deactivated"));
     public bool HasError => Model.LastError is not null;
 
     /// <summary>"12.4 GB of 100 GB" when the provider reports quota, otherwise blank.</summary>
@@ -280,7 +276,7 @@ public sealed partial class SubscriptionRowViewModel(
         get
         {
             if (Model.TotalBytes is not > 0 || Model.UsedBytes is null) return "";
-            return $"{Bytes(Model.UsedBytes.Value)} of {Bytes(Model.TotalBytes.Value)}";
+            return L.F("QuotaOf", Bytes(Model.UsedBytes.Value), Bytes(Model.TotalBytes.Value));
         }
     }
 
@@ -288,7 +284,7 @@ public sealed partial class SubscriptionRowViewModel(
     public bool HasQuota => Model.UsedFraction is not null;
 
     public string ExpiryText => Model.ExpiresAt is { } e
-        ? $"expires {e.LocalDateTime:d}"
+        ? L.F("Expires", e.LocalDateTime.ToString("d"))
         : "";
 
     public void Reload()
