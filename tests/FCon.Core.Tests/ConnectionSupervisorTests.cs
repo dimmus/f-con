@@ -295,7 +295,8 @@ public sealed class ConnectionSupervisorTests
         api.Now["proxy"] = "auto";
         api.Now["auto"] = "node-b";
         h.Engine.Api = api;
-        h.Engine.ActiveConfig = TestKit.GroupedConfig(a, b);
+        // PreferBestServer makes the engine build a config that starts on the group.
+        h.Engine.ActiveConfig = TestKit.GroupedConfig(a, b) with { StartsOnAuto = true };
 
         await h.Supervisor.ConnectAsync(a);
         await TestKit.WaitForAsync(() => h.Supervisor.Current.State == LinkState.Healthy);
@@ -330,6 +331,8 @@ public sealed class ConnectionSupervisorTests
     {
         await using var h = new Harness().Build();
         h.Settings.VerifyOnConnect = false;
+        // Monitoring off, or its first tick could probe before the assertion below.
+        h.Settings.ContinuousHealthCheck = false;
         var a = TestKit.Node("A");
         h.Candidates.Add(a);
 

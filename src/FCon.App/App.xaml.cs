@@ -46,6 +46,7 @@ public partial class App : Application
         // Logging off or shutting down does give us a chance to run, unlike a force-kill.
         // Worth taking: it stops a reboot from leaving the machine pointed at a dead port.
         Microsoft.Win32.SystemEvents.SessionEnding += OnSessionEnding;
+        Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
 
         var window = new MainWindow(_services);
         MainWindow = window;
@@ -126,8 +127,19 @@ public partial class App : Application
         }
     }
 
+    /// <summary>
+    /// Sleep freezes the core's connections without telling it. Once the machine is
+    /// back, ask for a probe now rather than up to a full interval later.
+    /// </summary>
+    private void OnPowerModeChanged(object sender, Microsoft.Win32.PowerModeChangedEventArgs e)
+    {
+        if (e.Mode == Microsoft.Win32.PowerModes.Resume)
+            _services?.Supervisor.Nudge("Resumed from sleep");
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
+        Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         Microsoft.Win32.SystemEvents.SessionEnding -= OnSessionEnding;
         _tray?.Dispose();
         if (_services is not null) _services.DisposeAsync().AsTask().GetAwaiter().GetResult();
