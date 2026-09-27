@@ -735,7 +735,7 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
     }
 
     /// <summary>True while a connect-and-retry loop is already running.</summary>
-    private bool IsAttempting
+    public bool IsAttempting
     {
         get
         {
