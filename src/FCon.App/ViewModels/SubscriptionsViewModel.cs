@@ -32,12 +32,20 @@ public sealed partial class SubscriptionsViewModel(
             "Paste the subscription URL. It will be fetched and its servers imported.");
 
         if (string.IsNullOrWhiteSpace(url)) return;
+        AddUrl(url, quiet: false);
+    }
 
+    /// <summary>
+    /// Add a feed by address and start fetching it. Shared by the Add button and the
+    /// paste shortcut. Returns false when the text is not an http(s) address.
+    /// </summary>
+    public bool AddUrl(string url, bool quiet)
+    {
         if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri)
             || uri.Scheme is not ("http" or "https"))
         {
-            dialogs.ShowError("Invalid URL", "A subscription URL must start with http:// or https://.");
-            return;
+            if (!quiet) dialogs.ShowError("Invalid URL", "A subscription URL must start with http:// or https://.");
+            return false;
         }
 
         var normalised = uri.ToString();
@@ -52,8 +60,10 @@ public sealed partial class SubscriptionsViewModel(
         {
             Refresh();
             Selected = Items.FirstOrDefault(i => i.Model.Id == existing.Id);
+            services.Log.Add(new FCon.Core.Engine.EngineLogLine(
+                DateTimeOffset.Now, $"Subscription already present: {existing.Name}; refreshing it.", false));
             _ = UpdateOneAsync(Selected);
-            return;
+            return true;
         }
 
         var subscription = new Subscription
@@ -64,7 +74,10 @@ public sealed partial class SubscriptionsViewModel(
 
         services.Profiles.UpsertSubscription(subscription);
         Refresh();
+        services.Log.Add(new FCon.Core.Engine.EngineLogLine(
+            DateTimeOffset.Now, $"Subscription added: {normalised}; fetching.", false));
         _ = UpdateOneAsync(Items.FirstOrDefault(i => i.Model.Id == subscription.Id));
+        return true;
     }
 
     [RelayCommand]
@@ -88,6 +101,13 @@ public sealed partial class SubscriptionsViewModel(
         row ??= Selected;
         if (row is null) return;
 
+        if (row.Model.IsBuiltIn)
+        {
+            dialogs.ShowInfo("Built-in subscription",
+                "This list ships with FCon and its address is fixed. Add your own subscription for a different URL.");
+            return;
+        }
+
         var url = dialogs.PromptText("Subscription URL", "Update the fetch URL", row.Model.Url);
         if (string.IsNullOrWhiteSpace(url)) return;
 
@@ -101,6 +121,13 @@ public sealed partial class SubscriptionsViewModel(
     {
         row ??= Selected;
         if (row is null) return;
+
+        if (row.Model.IsBuiltIn)
+        {
+            dialogs.ShowInfo("Built-in subscription",
+                "This list ships with FCon and cannot be removed. Uncheck it to take its servers out of use.");
+            return;
+        }
 
         if (!dialogs.Confirm("Remove subscription",
                 $"Remove \"{row.Model.Name}\" and the {row.Model.NodeCount} server(s) it provided?"))
@@ -236,6 +263,7 @@ public sealed partial class SubscriptionRowViewModel(
 
     public string Name => Model.Name;
     public string Url => Model.Url;
+    public bool IsBuiltIn => Model.IsBuiltIn;
     public int NodeCount => Model.NodeCount;
     public bool ThroughProxy => Model.UpdateThroughProxy;
 

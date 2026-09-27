@@ -140,7 +140,8 @@
 
                 <WrapPanel Grid.Row="1" Margin="0,14,0,10">
                     <Button Content="Add" Command="{Binding AddServerCommand}" Margin="0,0,8,8" />
-                    <Button Content="Import from clipboard" Command="{Binding ImportFromClipboardCommand}" Margin="0,0,8,8" />
+                    <Button Content="Import from clipboard" Command="{Binding ImportFromClipboardCommand}" Margin="0,0,8,8"
+                            ToolTip="Or press Ctrl+V anywhere: share links are imported, a subscription address is added and fetched." />
                     <Button Content="Paste links..." Command="{Binding ImportFromTextCommand}" Margin="0,0,8,8" />
                     <Button Content="Test all" Command="{Binding TestAllCommand}" Margin="0,0,8,8" />
                     <Button Content="Test selected" Command="{Binding TestSelectedCommand}"
@@ -273,7 +274,15 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                                <Border Background="{DynamicResource Accent.Muted}" CornerRadius="4"
+                                                        Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                        ToolTip="Ships with FCon. Can be deactivated or renamed, not removed."
+                                                        Visibility="{Binding IsBuiltIn, Converter={StaticResource BoolVis}}">
+                                                    <TextBlock Text="built-in" FontSize="10.5" />
+                                                </Border>
+                                            </StackPanel>
                                             <TextBlock Text="{Binding Url}" Style="{StaticResource Caption}"
                                                        TextTrimming="CharacterEllipsis" />
                                         </StackPanel>

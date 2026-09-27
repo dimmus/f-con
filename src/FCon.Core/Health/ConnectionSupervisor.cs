@@ -104,6 +104,9 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
     private long _passiveMark;
     private bool _passiveMarkValid;
 
+    /// <summary>Released by <see cref="Nudge"/> to make the monitor probe now rather than on its timer.</summary>
+    private readonly SemaphoreSlim _wake = new(0, 1);
+
     public ConnectionSupervisor(
         IEngineController engine,
         QualityStore quality,
@@ -280,6 +283,8 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
     {
         Publish(LinkState.Connecting, node, null, $"Connecting to {node.DisplayName}...");
         _liveNode = null;
+        // A previous connection's exit must not be shown against this one.
+        _exit = null;
         ResetPassive();
 
         var status = await _engine.ConnectAsync(node, autoSelect, ct).ConfigureAwait(false);
@@ -289,6 +294,8 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
             Publish(LinkState.Failed, node, null, status.Message);
             return false;
         }
+
+        await PinSelectorAsync(ct).ConfigureAwait(false);
 
         if (!settings.VerifyOnConnect)
         {
@@ -336,6 +343,69 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
         return true;
     }
 
+    /// <summary>
+    /// Force the selector onto the server this connection was built for. sing-box
+    /// persists a selector's last choice in its cache file and restores it on start,
+    /// overriding the config's <c>default</c>; without this a session that ended on
+    /// the automatic group starts on it again, and verification tests the wrong thing.
+    /// The API can lag the listener by a moment, so the call is retried briefly.
+    /// </summary>
+    private async Task PinSelectorAsync(CancellationToken ct)
+    {
+        var config = _engine.ActiveConfig;
+        var api = _engine.Api;
+        if (config?.SelectorTag is null || config.AutoTag is null || api is null) return;
+
+        var wanted = config.StartsOnAuto ? config.AutoTag : config.PrimaryTag;
+        for (var attempt = 0; attempt < 8 && !ct.IsCancellationRequested; attempt++)
+        {
+            var selector = await api.GetProxyAsync(config.SelectorTag, ct).ConfigureAwait(false);
+            if (selector is not null)
+            {
+                if (string.Equals(selector.Now, wanted, StringComparison.Ordinal)) return;
+                if (await api.SelectAsync(config.SelectorTag, wanted, ct).ConfigureAwait(false))
+                {
+                    _log($"Selector was on \"{selector.Now}\"; set to \"{wanted}\".", false);
+                    return;
+                }
+            }
+
+            try
+            {
+                await Task.Delay(250, ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+
+        _log("Could not pin the core's selector; verification may test the group instead of the chosen server.", true);
+    }
+
+    /// <summary>
+    /// Ask the monitor to probe now instead of waiting for its timer: the network
+    /// changed, the machine woke up, or something else made the last verdict stale.
+    /// Harmless when nothing is being monitored.
+    /// </summary>
+    public void Nudge(string reason)
+    {
+        if (!IsMonitoring) return;
+
+        _log($"{reason}; checking the tunnel now.", false);
+        if (_wake.CurrentCount == 0)
+        {
+            try
+            {
+                _wake.Release();
+            }
+            catch (SemaphoreFullException)
+            {
+                // A nudge is already pending; one is enough.
+            }
+        }
+    }
+
     private async Task RefreshExitAsync(ProxyNode node, int? latency, AppSettings settings, CancellationToken ct)
     {
         var exit = await _probe.LookupExitAsync(settings.HttpPort, ct).ConfigureAwait(false);
@@ -345,6 +415,25 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
         _log($"Exit: {exit.Describe()}", false);
         if (Current.State == LinkState.Healthy)
             Publish(LinkState.Healthy, node, latency, $"Connected via {node.DisplayName}");
+    }
+
+    /// <summary>
+    /// The exit changed with the server: drop the old answer, let the switch settle,
+    /// then ask again. Until it answers the UI says "exit unknown" rather than
+    /// showing the previous server's country.
+    /// </summary>
+    private async Task RefreshExitAfterMoveAsync(ProxyNode node, int? latency, AppSettings settings, CancellationToken ct)
+    {
+        _exit = null;
+        try
+        {
+            await Task.Delay(_timing.SwitchSettle, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        await RefreshExitAsync(node, latency, settings, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -385,6 +474,7 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
         if (!health.Ok) return null;
 
         var live = await ResolveLiveNodeAsync(failing, ct).ConfigureAwait(false);
+        _exit = null;
         _log($"Traffic now flows through {live.DisplayName}.", false);
         return (live, health);
     }
@@ -473,7 +563,8 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
 
             try
             {
-                await Task.Delay(interval, ct).ConfigureAwait(false);
+                // Sleeps for the interval, or until a nudge says "look now".
+                await _wake.WaitAsync(interval, ct).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -491,7 +582,8 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
                 if (moved)
                 {
                     _log($"The core moved traffic to {node.DisplayName}.", false);
-                    _ = RefreshExitAsync(node, Current.LatencyMs, settings, ct);
+                    _exit = null;
+                    _ = RefreshExitAfterMoveAsync(node, Current.LatencyMs, settings, ct);
                 }
             }
 
@@ -608,6 +700,15 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
                 lock (_gate) _recovering = false;
             }
         });
+    }
+
+    /// <summary>True while the health monitor is watching a connection.</summary>
+    public bool IsMonitoring
+    {
+        get
+        {
+            lock (_gate) return _monitorTask is { IsCompleted: false };
+        }
     }
 
     /// <summary>True while a connect-and-retry loop is already running.</summary>

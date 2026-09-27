@@ -26,6 +26,10 @@ public partial class MainWindow : Window
 
         _vm.Logs.Lines.CollectionChanged += (_, _) => QueueLogScroll();
 
+        // Ctrl+V anywhere imports whatever is on the clipboard, the way Happ does.
+        // Text boxes keep their own paste; only the rest of the window is claimed.
+        PreviewKeyDown += OnPreviewKeyDown;
+
         _subscriptionTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(15) };
         _subscriptionTimer.Tick += async (_, _) => await AutoUpdateSubscriptionsAsync();
         _subscriptionTimer.Start();
@@ -34,6 +38,15 @@ public partial class MainWindow : Window
     }
 
     public MainViewModel ViewModel => _vm;
+
+    private void OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != Key.V || Keyboard.Modifiers != ModifierKeys.Control) return;
+        if (Keyboard.FocusedElement is System.Windows.Controls.Primitives.TextBoxBase or PasswordBox) return;
+
+        _vm.PasteFromClipboardCommand.Execute(null);
+        e.Handled = true;
+    }
 
     /// <summary>
     /// Scrolls the log to the newest line, but never from inside the CollectionChanged

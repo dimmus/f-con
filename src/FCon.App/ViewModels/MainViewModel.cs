@@ -395,6 +395,33 @@ public sealed partial class MainViewModel : ObservableObject
         ImportText(text);
     }
 
+    /// <summary>
+    /// Ctrl+V anywhere in the window. A subscription address is added and fetched;
+    /// share links or a base64 payload are imported. Success is a log line and a
+    /// refreshed list rather than a dialog, so pasting several things in a row is
+    /// not interrupted; only a failure speaks up.
+    /// </summary>
+    [RelayCommand]
+    private void PasteFromClipboard()
+    {
+        var text = SafeClipboardText();
+        switch (FCon.Core.Import.PasteClassifier.Classify(text, out var normalised))
+        {
+            case FCon.Core.Import.PasteKind.Empty:
+                return;
+
+            case FCon.Core.Import.PasteKind.SubscriptionUrl:
+                Subscriptions.AddUrl(normalised, quiet: true);
+                SelectedPage = "subscriptions";
+                return;
+
+            default:
+                ImportText(normalised, quiet: true);
+                SelectedPage = "servers";
+                return;
+        }
+    }
+
     [RelayCommand]
     private void ImportFromText()
     {
@@ -406,7 +433,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(text)) ImportText(text);
     }
 
-    private void ImportText(string text)
+    private void ImportText(string text, bool quiet = false)
     {
         var result = _services.Importer.Import(text);
 
@@ -425,6 +452,15 @@ public sealed partial class MainViewModel : ObservableObject
             message += $"{Environment.NewLine}{Environment.NewLine}Skipped {result.Errors.Count}:"
                        + Environment.NewLine
                        + string.Join(Environment.NewLine, result.Errors.Take(8));
+
+        if (quiet)
+        {
+            _services.Log.Add(new EngineLogLine(DateTimeOffset.Now, message.ReplaceLineEndings(" "), result.Errors.Count > 0));
+            // Land on what was just pasted so the user sees it arrived.
+            var first = result.Nodes[0].Id;
+            SelectedServer = Servers.FirstOrDefault(r => r.Id == first) ?? SelectedServer;
+            return;
+        }
 
         _dialogs.ShowInfo("Import complete", message);
     }

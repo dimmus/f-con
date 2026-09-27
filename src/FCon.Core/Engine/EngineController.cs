@@ -165,7 +165,9 @@ public sealed class EngineController : IEngineController, IAsyncDisposable
             return Fault(node, $"Could not start {engine.FileName}: {ex.Message}");
         }
 
-        SetState(ConnectionState.Connecting, node, "Waiting for the local listener...", config.Warnings);
+        // Warnings travel on the Connected status only; carrying them here as well
+        // made every one of them appear twice in the log per connect.
+        SetState(ConnectionState.Connecting, node, "Waiting for the local listener...", []);
 
         var ready = await WaitForListenerAsync(settings.SocksPort, TimeSpan.FromSeconds(10), ct)
             .ConfigureAwait(false);
@@ -326,7 +328,7 @@ public sealed class EngineController : IEngineController, IAsyncDisposable
             if (e.Data is null) return;
             var text = StripAnsi(e.Data);
             RecordCoreOutput(text);
-            Log(text, true);
+            Log(text, isError: !IsRoutineCoreChatter(text));
         };
         process.Exited += OnProcessExited;
 
@@ -523,6 +525,15 @@ public sealed class EngineController : IEngineController, IAsyncDisposable
 
     private static string StripAnsi(string text) =>
         text.Contains(EscapeChar) ? AnsiPattern.Replace(text, "") : text;
+
+    /// <summary>
+    /// sing-box reports every connection that ends with an error at ERROR level -
+    /// resets, idle closes, "force closed via ClientConn.Close". They are the normal
+    /// life of a tunnel, not faults, and painting them red buries the lines that are.
+    /// </summary>
+    internal static bool IsRoutineCoreChatter(string text) =>
+        text.Contains("connection: connection ", StringComparison.Ordinal)
+        && text.Contains(" closed", StringComparison.Ordinal);
 
     /// <summary>Record a line the core itself printed, keeping only the recent tail.</summary>
     private void RecordCoreOutput(string text)

@@ -31,6 +31,9 @@ public sealed class AppServices : IAsyncDisposable
 
         Registry = PluginRegistry.CreateDefault();
         Profiles = new ProfileStore();
+        // A fresh install must have somewhere to connect to. The lists are fetched by
+        // the usual subscription refresh once the window is up.
+        Profiles.EnsureBuiltIn(DefaultSubscriptions.All);
         Importer = new LinkImporter(Registry);
         Subscriptions = new SubscriptionService(Profiles, Importer, () => Settings);
         Log = new LogBuffer();
@@ -65,6 +68,10 @@ public sealed class AppServices : IAsyncDisposable
 
         Downloader = new EngineDownloader(
             () => Supervisor.Current.IsUsable ? Settings.HttpPort : null);
+
+        // A route change or a wake from sleep makes the last health verdict stale;
+        // probe right away instead of waiting out the interval.
+        Network = new NetworkWatcher(reason => Supervisor.Nudge(reason));
 
         // Counters only mean anything while a tunnel is up.
         Supervisor.Changed += snapshot =>
@@ -130,6 +137,7 @@ public sealed class AppServices : IAsyncDisposable
     public TrafficMeter Traffic { get; }
     public LatencyTester Latency { get; }
     public EngineDownloader Downloader { get; }
+    public NetworkWatcher Network { get; }
 
     public Task SaveSettingsAsync() => _settingsStore.SaveAsync(Settings);
 
@@ -137,6 +145,7 @@ public sealed class AppServices : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        Network.Dispose();
         await Traffic.DisposeAsync().ConfigureAwait(false);
         await Supervisor.DisposeAsync().ConfigureAwait(false);
         await Engine.DisposeAsync().ConfigureAwait(false);

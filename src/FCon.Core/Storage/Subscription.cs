@@ -7,6 +7,12 @@ public sealed record Subscription
     public string Url { get; set; } = "";
     public bool Enabled { get; set; } = true;
 
+    /// <summary>
+    /// Shipped with the app. Cannot be removed or re-pointed, only deactivated or
+    /// renamed, so every install keeps a known-good source of servers.
+    /// </summary>
+    public bool IsBuiltIn { get; set; }
+
     /// <summary>Fetch through the running tunnel rather than direct. Needed when the URL is itself blocked.</summary>
     public bool UpdateThroughProxy { get; set; }
 
