@@ -12,7 +12,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\fcon.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <Version>1.2.0</Version>
+    <Version>1.2.1</Version>
     <Product>KVN</Product>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!--
