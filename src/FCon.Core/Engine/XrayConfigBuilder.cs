@@ -322,7 +322,8 @@ public sealed class XrayConfigBuilder(PluginRegistry registry)
         {
             var direct = new JsonObject
             {
-                ["address"] = settings.DirectDns,
+                // Xray spells the system resolver "localhost".
+                ["address"] = SingBoxConfigBuilder.IsLocal(settings.DirectDns) ? "localhost" : settings.DirectDns,
                 ["domains"] = new JsonArray("geosite:private"),
             };
             if (routing.BypassMicrosoftServices)

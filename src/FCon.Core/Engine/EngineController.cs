@@ -19,11 +19,30 @@ public enum ConnectionState
 
 public sealed record EngineLogLine(DateTimeOffset Timestamp, string Text, bool IsError);
 
+/// <summary>
+/// Why a connect attempt faulted. The supervisor retries and fails over on a server
+/// fault; the others are about this machine and no other server will fix them.
+/// </summary>
+public enum FaultKind
+{
+    None,
+    Server,
+    CoreMissing,
+    CoreTooOld,
+    PortConflict,
+}
+
 public sealed record ConnectionStatus(
     ConnectionState State,
     ProxyNode? Node,
     string? Message,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings)
+{
+    public FaultKind Fault { get; init; }
+
+    /// <summary>True when trying another server cannot help.</summary>
+    public bool IsEnvironmentFault => Fault is FaultKind.CoreMissing or FaultKind.CoreTooOld or FaultKind.PortConflict;
+}
 
 /// <summary>
 /// What the supervisor needs from the thing that runs the core. Pulled behind an
@@ -133,10 +152,10 @@ public sealed class EngineController : IEngineController, IAsyncDisposable
 
             // The status card is narrow, so keep the headline short and put the path in the log.
             Log($"{exe} was not found. Expected it in {folder} or on PATH.", isError: true);
-            return Fault(node, $"{exe} is not installed. Open Settings to get it.");
+            return Fault(node, $"{exe} is not installed. Open Settings to get it.", FaultKind.CoreMissing);
         }
 
-        if (DescribeTooOld(engine) is { } tooOld) return Fault(node, tooOld);
+        if (DescribeTooOld(engine) is { } tooOld) return Fault(node, tooOld, FaultKind.CoreTooOld);
 
         GeneratedConfig config;
         try
@@ -150,7 +169,7 @@ public sealed class EngineController : IEngineController, IAsyncDisposable
 
         // Check the listeners up front. Otherwise the core dies on a bare Winsock bind
         // error that says nothing about which program already owns the port.
-        if (DescribePortConflict(settings) is { } conflict) return Fault(node, conflict);
+        if (DescribePortConflict(settings) is { } conflict) return Fault(node, conflict, FaultKind.PortConflict);
 
         AppPaths.EnsureCreated();
         var configPath = AppPaths.GeneratedConfigFile(EngineLocator.DirectoryName(settings.Engine));
@@ -487,10 +506,10 @@ public sealed class EngineController : IEngineController, IAsyncDisposable
         return false;
     }
 
-    private ConnectionStatus Fault(ProxyNode node, string message)
+    private ConnectionStatus Fault(ProxyNode node, string message, FaultKind kind = FaultKind.Server)
     {
         SetState(ConnectionState.Faulted, node, message, []);
-        return CurrentStatus([]);
+        return CurrentStatus([]) with { Fault = kind };
     }
 
     private ConnectionStatus CurrentStatus(IReadOnlyList<string> warnings) =>

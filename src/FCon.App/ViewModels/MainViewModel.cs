@@ -3,6 +3,7 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FCon.Abstractions.Model;
+using FCon.Abstractions.Plugins;
 using FCon.App.Services;
 using FCon.Core.Config;
 using FCon.Core.Engine;
@@ -53,6 +54,13 @@ public sealed partial class MainViewModel : ObservableObject
 
         // XAML follows the localizer on its own; computed strings need a nudge.
         Localizer.Instance.Changed += () => Application.Current.Dispatcher.Invoke(OnLanguageChanged);
+
+        // The banner follows the engine choice and the download progress.
+        Settings.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(SettingsViewModel.Engine) or nameof(SettingsViewModel.CoreInstallProgress) or null or "")
+                RefreshCorePresence();
+        };
 
         Refresh();
     }
@@ -138,6 +146,55 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     public bool HasExit => IsConnected && _services.Supervisor.Current.Exit is not null;
+
+    // ------------------------------------------------------------ core presence
+
+    private bool _offeredCoreDownload;
+
+    /// <summary>True while the selected engine's executable cannot be found.</summary>
+    public bool IsCoreMissing => EngineLocator.Locate(_services.Settings.Engine) is null;
+
+    public string CoreMissingText => L.F("NoCore_Banner", EngineLocator.ExecutableName(_services.Settings.Engine));
+
+    public string CoreDownloadLabel =>
+        Settings.CoreInstallProgress ?? L.F("NoCore_Download", _services.Settings.Engine == EngineKind.Xray ? "Xray" : "sing-box");
+
+    public void RefreshCorePresence()
+    {
+        OnPropertyChanged(nameof(IsCoreMissing));
+        OnPropertyChanged(nameof(CoreMissingText));
+        OnPropertyChanged(nameof(CoreDownloadLabel));
+    }
+
+    /// <summary>
+    /// Make sure a core exists before anything tries to connect. With <paramref name="ask"/>
+    /// the user is offered the download once; the banner stays either way. Returns true
+    /// when a core is present afterwards.
+    /// </summary>
+    public async Task<bool> EnsureCoreAsync(bool ask)
+    {
+        if (!IsCoreMissing) return true;
+
+        var name = _services.Settings.Engine == EngineKind.Xray ? "Xray" : "sing-box";
+        if (ask)
+        {
+            if (_offeredCoreDownload) return false;
+            _offeredCoreDownload = true;
+            if (!_dialogs.Confirm(L.T("Dlg_NoCore"), L.F("NoCoreBody", name))) return false;
+        }
+
+        var ok = await Settings.InstallEngineAsync(_services.Settings.Engine);
+        RefreshCorePresence();
+        return ok && !IsCoreMissing;
+    }
+
+    /// <summary>The banner's button: download without asking again.</summary>
+    [RelayCommand]
+    private async Task DownloadCoreAsync()
+    {
+        if (await EnsureCoreAsync(ask: false) && SelectedServer?.Node is { } node && State == LinkState.Idle)
+            await ConnectNodeAsync(node);
+    }
 
     /// <summary>Live rates, so the status bar shows the tunnel doing something.</summary>
     public string TrafficRateText
@@ -245,7 +302,22 @@ public sealed partial class MainViewModel : ObservableObject
             // so a lost connection is a passing state, not something to interrupt for -
             // and a modal box on every drop is exactly what makes a flaky link unusable.
             // The status card, its colour and the log carry the same information.
+            //
+            // The one exception: no core at all. Retrying stopped, nothing will change
+            // by itself, and the fix is one download away - so offer it.
+            if (snapshot is { State: LinkState.Failed, Fault: FaultKind.CoreMissing or FaultKind.CoreTooOld })
+            {
+                RefreshCorePresence();
+                _ = OfferCoreThenReconnectAsync(snapshot.Node);
+            }
         });
+    }
+
+    private async Task OfferCoreThenReconnectAsync(ProxyNode? node)
+    {
+        _offeredCoreDownload = false;
+        if (await EnsureCoreAsync(ask: true) && node is not null)
+            await ConnectNodeAsync(node);
     }
 
     /// <summary>Engine-level config warnings still belong in the log.</summary>
@@ -667,6 +739,44 @@ public sealed partial class MainViewModel : ObservableObject
             IsBusy = false;
             BusyText = null;
         }
+    }
+
+    /// <summary>
+    /// Walk the layers between this machine and the server and say which one fails,
+    /// in words. If Windows itself refused a connection, offer to add firewall rules.
+    /// </summary>
+    [RelayCommand]
+    private async Task DiagnoseAsync()
+    {
+        var node = _services.Engine.ActiveNode ?? SelectedServer?.Node ?? _allRows.FirstOrDefault()?.Node;
+
+        IsBusy = true;
+        BusyText = L.T("Diagnosing");
+        DiagnosticReport report;
+        try
+        {
+            report = await ConnectionDiagnostics.RunAsync(node, _services.Settings, _services.Engine, _services.Registry);
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyText = null;
+        }
+
+        foreach (var item in report.Items)
+            _services.Log.Add(new EngineLogLine(DateTimeOffset.Now, $"diag: {item.Name}: {item.Detail}", item.Verdict == DiagnosticVerdict.Fail));
+
+        _dialogs.ShowConfig(L.T("Dlg_Diagnostics"), report.ToText());
+
+        if (!report.FirewallBlockSuspected || report.Programs.Count == 0) return;
+        if (!_dialogs.Confirm(L.T("Dlg_AllowFirewall"), L.T("AllowFirewallBody"))) return;
+
+        var ok = WindowsFirewall.TryAllow(
+            report.Programs.Select(p => ($"KVN - {p.Name}", p.Program)).ToList(),
+            inbound: _services.Settings.AllowLan);
+
+        if (ok) _dialogs.ShowInfo(L.T("Dlg_AllowFirewall"), L.T("FirewallRulesAdded"));
+        else _dialogs.ShowError(L.T("Dlg_AllowFirewall"), L.T("FirewallRulesFailed"));
     }
 
     /// <summary>Rank by everything we have learned, not just the last latency reading.</summary>

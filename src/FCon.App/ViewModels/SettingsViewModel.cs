@@ -377,36 +377,51 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// checksum the release publishes before anything is written next to the app.
     /// </summary>
     [RelayCommand]
-    private async Task InstallEngineAsync(EngineRowViewModel? row)
+    private Task InstallEngineAsync(EngineRowViewModel? row) => InstallRowAsync(row);
+
+    /// <summary>Install a core by kind; used by the first-run prompt and the Servers banner.</summary>
+    public Task<bool> InstallEngineAsync(EngineKind kind)
     {
-        if (row is null || row.IsBusy) return;
+        var row = EngineRows.FirstOrDefault(r => r.Kind == kind) ?? EngineRowViewModel.Create(kind, kind == S.Engine);
+        return InstallRowAsync(row);
+    }
+
+    private async Task<bool> InstallRowAsync(EngineRowViewModel? row)
+    {
+        if (row is null || row.IsBusy) return false;
 
         // A running core holds its executable locked, and swapping it under a live
         // tunnel is not something to do silently.
         if (_services.Supervisor.Current.State != LinkState.Idle && row.Kind == S.Engine)
         {
             if (!_dialogs.Confirm(L.T("Dlg_DisconnectToUpdate"), L.F("DisconnectToUpdateBody", row.DisplayName)))
-                return;
+                return false;
             await _services.Supervisor.DisconnectAsync();
         }
 
         row.IsBusy = true;
         row.Progress = L.T("Starting");
+        CoreInstallProgress = L.T("Starting");
         try
         {
-            var progress = new Progress<string>(text => row.Progress = text);
+            var progress = new Progress<string>(text => row.Progress = CoreInstallProgress = text);
             var result = await _services.Downloader.InstallAsync(row.Kind, progress);
 
             if (result.Succeeded) _dialogs.ShowInfo(L.T("Dlg_CoreInstalled"), result.Message);
             else _dialogs.ShowError(L.T("Dlg_CoreInstallFailed"), result.Message);
+            return result.Succeeded;
         }
         finally
         {
             row.IsBusy = false;
             row.Progress = null;
+            CoreInstallProgress = null;
             RefreshEngineStatus();
         }
     }
+
+    /// <summary>Progress line shared with the Servers page banner while a core downloads.</summary>
+    [ObservableProperty] private string? _coreInstallProgress;
 
     /// <summary>
     /// Open the upstream releases page for a manual install — the way to go when GitHub

@@ -28,6 +28,9 @@ public sealed record LinkSnapshot(
     /// <summary>Where traffic came out, once confirmed. Null until a connection is verified.</summary>
     public ExitInfo? Exit { get; init; }
 
+    /// <summary>Set on <see cref="LinkState.Failed"/> when the cause is this machine, not the server.</summary>
+    public FaultKind Fault { get; init; }
+
     public bool IsUsable => State is LinkState.Healthy or LinkState.Degraded;
 }
 
@@ -177,9 +180,19 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
             // start rather than betting on one server again.
             var autoSelect = settings.PreferBestServer || tried.Count > 1 || round > 0;
 
-            if (await TryBringUpAsync(current, settings, autoSelect, ct).ConfigureAwait(false))
+            var outcome = await TryBringUpAsync(current, settings, autoSelect, ct).ConfigureAwait(false);
+            if (outcome == BringUp.Up)
             {
                 StartMonitor();
+                return;
+            }
+
+            // No core, a core too old, a port taken: no other server and no amount of
+            // retrying will change that. Stop, keep the message on screen, and hand
+            // the decision back to the user.
+            if (outcome == BringUp.Blocked)
+            {
+                _wanted = false;
                 return;
             }
 
@@ -278,8 +291,10 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
         Publish(LinkState.Idle, null, null, null);
     }
 
+    private enum BringUp { Up, ServerFailed, Blocked }
+
     /// <summary>Bring one server up and confirm it carries traffic.</summary>
-    private async Task<bool> TryBringUpAsync(ProxyNode node, AppSettings settings, bool autoSelect, CancellationToken ct)
+    private async Task<BringUp> TryBringUpAsync(ProxyNode node, AppSettings settings, bool autoSelect, CancellationToken ct)
     {
         Publish(LinkState.Connecting, node, null, $"Connecting to {node.DisplayName}...");
         _liveNode = null;
@@ -290,9 +305,17 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
         var status = await _engine.ConnectAsync(node, autoSelect, ct).ConfigureAwait(false);
         if (status.State != ConnectionState.Connected)
         {
+            if (status.IsEnvironmentFault)
+            {
+                // Not the server's fault; its record must not suffer for a missing core.
+                _log(status.Message ?? "Cannot connect on this machine.", true);
+                Publish(LinkState.Failed, node, null, status.Message, fault: status.Fault);
+                return BringUp.Blocked;
+            }
+
             _quality.RecordFailure(node.Id, status.Message);
             Publish(LinkState.Failed, node, null, status.Message);
-            return false;
+            return BringUp.ServerFailed;
         }
 
         await PinSelectorAsync(ct).ConfigureAwait(false);
@@ -301,7 +324,7 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
         {
             _liveNode = await ResolveLiveNodeAsync(node, ct).ConfigureAwait(false);
             Publish(LinkState.Healthy, _liveNode, null, "Connected (not verified).");
-            return true;
+            return BringUp.Up;
         }
 
         Publish(LinkState.Verifying, node, null, "Checking that traffic flows...");
@@ -326,7 +349,7 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
                 // Leave nothing half-configured behind before trying the next server.
                 await _engine.DisconnectAsync().ConfigureAwait(false);
                 Publish(LinkState.Failed, node, null, $"No traffic through {node.DisplayName}: {health.Describe()}");
-                return false;
+                return BringUp.ServerFailed;
             }
 
             (live, health) = switched.Value;
@@ -340,7 +363,7 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
         // Ask the far side where the traffic surfaced. This is both the country readout
         // and the strongest cheap proof the tunnel is genuinely carrying data.
         await RefreshExitAsync(live, health.LatencyMs, settings, ct).ConfigureAwait(false);
-        return true;
+        return BringUp.Up;
     }
 
     /// <summary>
@@ -751,11 +774,13 @@ public sealed class ConnectionSupervisor : IAsyncDisposable
         ProxyNode? node,
         int? latency,
         string? message,
-        int failures = 0)
+        int failures = 0,
+        FaultKind fault = FaultKind.None)
     {
         Current = new LinkSnapshot(state, node, latency, message, failures)
         {
             Exit = state is LinkState.Healthy or LinkState.Degraded ? _exit : null,
+            Fault = fault,
         };
         Changed?.Invoke(Current);
     }
