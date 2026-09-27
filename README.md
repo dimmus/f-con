@@ -6,6 +6,8 @@ Paste a link or a subscription, press Connect, and forget about it. FCon watches
 tunnel and swaps a failing server for a working one inside the running core, in about a
 second, without dropping what you were doing.
 
+![Servers: real-request latency and a reliability record for every server, with the live exit country in the status bar](docs/screenshots/servers.png)
+
 ## Why FCon
 
 - **Every protocol your provider hands out.** VLESS (XTLS Vision, REALITY), VMess,
@@ -23,6 +25,11 @@ second, without dropping what you were doing.
   traffic direct, block ads and QUIC.
 - **Nothing left behind.** The system proxy is restored even after a crash. The portable
   build keeps everything in one folder.
+
+<p align="center">
+  <img src="docs/screenshots/settings.png" width="49%" alt="Settings: engine status with one-click Update, a settings review, and the resilience options" />
+  <img src="docs/screenshots/subscriptions.png" width="49%" alt="Subscriptions: two feeds with server counts, quota and status" />
+</p>
 
 ## Get it
 
